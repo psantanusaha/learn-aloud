@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { PdfViewerComponent } from './components/pdf-viewer/pdf-viewer.component';
 import { ApiService } from './services/api.service';
+import { VoiceService, TranscriptEntry } from './services/voice.service';
 
 interface HighlightCommand {
   text: string;
@@ -23,7 +24,19 @@ export class App implements OnInit, OnDestroy {
   uploadedFileName = '';
   statusMessage = '';
 
-  constructor(private api: ApiService, private cdr: ChangeDetectorRef) {}
+  voiceError = '';
+
+  transcriptEntries: TranscriptEntry[] = [];
+
+  get isVoiceConnected() { return this.voice.isConnected; }
+  get isVoiceConnecting() { return this.voice.isConnecting; }
+  get isMicMuted() { return !this.voice.isMicEnabled; }
+
+  constructor(
+    private api: ApiService,
+    private voice: VoiceService,
+    private cdr: ChangeDetectorRef,
+  ) {}
 
   ngOnInit(): void {
     this.api.connectSocket();
@@ -51,10 +64,22 @@ export class App implements OnInit, OnDestroy {
       this.statusMessage = 'Demo completed!';
       this.cdr.detectChanges();
     });
+
+    this.voice.setClientActionHandler((action: any) => {
+      console.log('Voice action:', action);
+      this.handleClientAction(action);
+      this.cdr.detectChanges();
+    });
+
+    this.voice.setTranscriptHandler((entries: TranscriptEntry[]) => {
+      this.transcriptEntries = [...entries];
+      this.cdr.detectChanges();
+    });
   }
 
   ngOnDestroy(): void {
     this.api.disconnectSocket();
+    this.voice.disconnect();
   }
 
   onFileSelected(event: Event): void {
@@ -85,6 +110,41 @@ export class App implements OnInit, OnDestroy {
     if (!this.sessionId) return;
     this.highlightCommands = [];
     this.api.startDemo(this.sessionId);
+  }
+
+  async startVoiceSession(): Promise<void> {
+    if (!this.sessionId) return;
+    this.voiceError = '';
+    this.cdr.detectChanges();
+
+    this.api.getVoiceToken('student', this.sessionId).subscribe({
+      next: async (res: any) => {
+        try {
+          await this.voice.connect(res.livekit_url, res.token);
+          this.statusMessage = 'Voice session active';
+          this.cdr.detectChanges();
+        } catch (e: any) {
+          this.voiceError = `Failed to connect: ${e.message || e}`;
+          this.cdr.detectChanges();
+        }
+      },
+      error: (err) => {
+        const msg = err.error?.error || err.message || 'Unknown error';
+        this.voiceError = `Voice token error: ${msg}`;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  async disconnectVoice(): Promise<void> {
+    await this.voice.disconnect();
+    this.statusMessage = 'Voice session ended';
+    this.cdr.detectChanges();
+  }
+
+  async toggleMic(): Promise<void> {
+    await this.voice.toggleMic();
+    this.cdr.detectChanges();
   }
 
   private handleClientAction(action: any): void {

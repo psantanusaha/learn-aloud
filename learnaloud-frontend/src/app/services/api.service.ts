@@ -26,10 +26,10 @@ export class ApiService {
     });
   }
 
-  getVoiceToken(participant: string = 'student'): Observable<any> {
-    return this.http.get(`${this.baseUrl}/voice-token`, {
-      params: { participant },
-    });
+  getVoiceToken(participant: string = 'student', sessionId: string = ''): Observable<any> {
+    const params: any = { participant };
+    if (sessionId) params.session_id = sessionId;
+    return this.http.get(`${this.baseUrl}/voice-token`, { params });
   }
 
   getPdfUrl(sessionId: string): string {

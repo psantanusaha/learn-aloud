@@ -90,8 +90,32 @@ def search_text():
 
 @app.route("/api/voice-token", methods=["GET"])
 def voice_token():
+    if not os.getenv("VOCAL_BRIDGE_API_KEY"):
+        return jsonify({"error": "Voice agent not configured (no API key)"}), 503
+
     participant = request.args.get("participant", "student")
-    result = vocal_bridge.get_token(participant)
+    session_id = request.args.get("session_id", "")
+
+    # Build PDF context for the agent
+    context = None
+    if session_id and session_id in sessions:
+        pdf_data = sessions[session_id]["pdf_data"]
+        filename = sessions[session_id]["filename"]
+        lines = [f'The student has uploaded a PDF titled "{filename}".', ""]
+        for page in pdf_data.get("pages", []):
+            lines.append(f"--- Page {page['page_num']} ---")
+            lines.append(" ".join(b["text"] for b in page["blocks"]))
+            lines.append("")
+        context = "\n".join(lines)
+
+    try:
+        result = vocal_bridge.get_token(participant, context=context)
+    except Exception as e:
+        return jsonify({"error": f"Vocal Bridge API error: {e}"}), 502
+
+    if "error" in result:
+        return jsonify(result), 502
+
     return jsonify(result)
 
 

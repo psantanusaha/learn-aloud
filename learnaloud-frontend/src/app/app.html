@@ -35,6 +35,52 @@
 
         @if (pdfUrl) {
           <p class="file-name">{{ uploadedFileName }}</p>
+
+          <!-- Voice controls -->
+          <div class="voice-controls">
+            @if (!isVoiceConnected && !isVoiceConnecting) {
+              <button
+                class="voice-btn voice-start"
+                (click)="startVoiceSession()"
+              >
+                Start Voice Session
+              </button>
+            }
+
+            @if (isVoiceConnecting) {
+              <button class="voice-btn voice-start" disabled>
+                Connecting...
+              </button>
+            }
+
+            @if (isVoiceConnected) {
+              <div class="voice-active">
+                <span class="voice-indicator"></span>
+                <span>Voice Active</span>
+              </div>
+              <div class="voice-action-row">
+                <button
+                  class="voice-btn voice-mic"
+                  (click)="toggleMic()"
+                >
+                  {{ isMicMuted ? 'Unmute Mic' : 'Mute Mic' }}
+                </button>
+                <button
+                  class="voice-btn voice-disconnect"
+                  (click)="disconnectVoice()"
+                >
+                  Disconnect
+                </button>
+              </div>
+            }
+
+            @if (voiceError) {
+              <p class="voice-error">{{ voiceError }}</p>
+            }
+          </div>
+
+          <hr class="controls-divider" />
+
           <button
             class="demo-btn"
             (click)="startDemo()"
@@ -57,17 +103,32 @@
         }
       </div>
 
+      @if (isVoiceConnected && transcriptEntries.length > 0) {
+        <div class="transcript-panel">
+          <h3>Transcript</h3>
+          <div class="transcript-messages">
+            @for (entry of transcriptEntries; track entry.id) {
+              <div class="transcript-entry" [class.transcript-you]="entry.sender === 'you'" [class.transcript-agent]="entry.sender === 'agent'" [class.transcript-partial]="!entry.isFinal">
+                <span class="transcript-sender">{{ entry.sender === 'you' ? 'You' : 'Tutor' }}:</span>
+                {{ entry.text }}
+              </div>
+            }
+          </div>
+        </div>
+      }
+
       <div class="instructions">
         <h3>How It Works</h3>
         <ol>
           <li>Upload a PDF document</li>
-          <li>Click <strong>Start Teaching Demo</strong></li>
+          <li>Click <strong>Start Voice Session</strong> to talk to the AI tutor</li>
           <li>Watch as the AI tutor highlights key concepts in real-time</li>
         </ol>
         <p class="note">
-          This POC simulates a voice agent sending highlight commands via
-          WebSocket. In production, highlights will be synchronized with
-          actual speech from the Vocal Bridge AI agent.
+          Use <strong>Start Voice Session</strong> to connect to the Vocal Bridge
+          AI agent via LiveKit. The agent will speak, listen, and highlight
+          relevant text as it teaches. The <strong>Teaching Demo</strong> button
+          runs a simulated highlight sequence for testing without a voice agent.
         </p>
       </div>
     </aside>

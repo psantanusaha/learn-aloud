@@ -168,3 +168,142 @@
   color: #999;
   line-height: 1.5;
 }
+
+/* Voice controls */
+.voice-controls {
+  margin-bottom: 12px;
+}
+
+.voice-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.voice-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.voice-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-start {
+  background: linear-gradient(135deg, #2e7d32, #1b5e20);
+}
+
+.voice-active {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #1b3a1b;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #66bb6a;
+  margin-bottom: 8px;
+}
+
+.voice-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #66bb6a;
+  animation: voice-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(102, 187, 106, 0.6); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(102, 187, 106, 0); }
+}
+
+.voice-action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.voice-action-row .voice-btn {
+  flex: 1;
+  font-size: 13px;
+  padding: 10px 8px;
+}
+
+.voice-mic {
+  background: #455a64;
+}
+
+.voice-disconnect {
+  background: #b71c1c;
+}
+
+.voice-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #3e1a1a;
+  border-left: 3px solid #ef5350;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #ef9a9a;
+  line-height: 1.4;
+}
+
+.controls-divider {
+  border: none;
+  border-top: 1px solid #3a3a5c;
+  margin: 14px 0;
+}
+
+/* Transcript */
+.transcript-panel {
+  background: #2e2e48;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.transcript-panel h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.transcript-messages {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transcript-entry {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.transcript-you {
+  background: #1a3a5c;
+  color: #90caf9;
+}
+
+.transcript-agent {
+  background: #1b3a1b;
+  color: #a5d6a7;
+}
+
+.transcript-partial {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.transcript-sender {
+  font-weight: 600;
+  margin-right: 4px;
+}
