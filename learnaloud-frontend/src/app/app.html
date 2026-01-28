@@ -1,0 +1,75 @@
+<div class="app-container">
+  <header class="app-header">
+    <h1>LearnAloud</h1>
+    <span class="subtitle">Voice-Synchronized PDF Teaching Assistant</span>
+  </header>
+
+  <div class="main-content">
+    <section class="pdf-section">
+      @if (pdfUrl) {
+        <app-pdf-viewer
+          [pdfUrl]="pdfUrl"
+          [highlightCommands]="highlightCommands"
+        ></app-pdf-viewer>
+      } @else {
+        <div class="upload-area">
+          <div class="upload-prompt">
+            <p class="upload-icon">&#128196;</p>
+            <p>Upload a PDF to get started</p>
+            <label class="upload-btn" for="pdfInput">Choose PDF File</label>
+            <input
+              id="pdfInput"
+              type="file"
+              accept="application/pdf"
+              (change)="onFileSelected($event)"
+              hidden
+            />
+          </div>
+        </div>
+      }
+    </section>
+
+    <aside class="controls-section">
+      <div class="controls-panel">
+        <h2>Controls</h2>
+
+        @if (pdfUrl) {
+          <p class="file-name">{{ uploadedFileName }}</p>
+          <button
+            class="demo-btn"
+            (click)="startDemo()"
+            [disabled]="isDemoRunning"
+          >
+            {{ isDemoRunning ? 'Demo Running...' : 'Start Teaching Demo' }}
+          </button>
+          <label class="upload-btn reupload" for="pdfInputAlt">Upload Different PDF</label>
+          <input
+            id="pdfInputAlt"
+            type="file"
+            accept="application/pdf"
+            (change)="onFileSelected($event)"
+            hidden
+          />
+        }
+
+        @if (statusMessage) {
+          <p class="status">{{ statusMessage }}</p>
+        }
+      </div>
+
+      <div class="instructions">
+        <h3>How It Works</h3>
+        <ol>
+          <li>Upload a PDF document</li>
+          <li>Click <strong>Start Teaching Demo</strong></li>
+          <li>Watch as the AI tutor highlights key concepts in real-time</li>
+        </ol>
+        <p class="note">
+          This POC simulates a voice agent sending highlight commands via
+          WebSocket. In production, highlights will be synchronized with
+          actual speech from the Vocal Bridge AI agent.
+        </p>
+      </div>
+    </aside>
+  </div>
+</div>

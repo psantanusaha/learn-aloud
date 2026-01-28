@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.angular/
+backend/venv/
+backend/uploads/*.pdf
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+.env
+.DS_Store

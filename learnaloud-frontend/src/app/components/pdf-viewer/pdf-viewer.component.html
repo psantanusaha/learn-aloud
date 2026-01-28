@@ -1,0 +1,14 @@
+<div class="pdf-viewer">
+  <div class="pdf-controls">
+    <button (click)="previousPage()" [disabled]="currentPage <= 1">Previous</button>
+    <span class="page-info">Page {{ currentPage }} / {{ totalPages }}</span>
+    <button (click)="nextPage()" [disabled]="currentPage >= totalPages">Next</button>
+  </div>
+
+  <div class="canvas-container" #canvasContainer>
+    <div class="page-wrapper">
+      <canvas #pdfCanvas></canvas>
+      <div class="text-layer" #textLayer></div>
+    </div>
+  </div>
+</div>
