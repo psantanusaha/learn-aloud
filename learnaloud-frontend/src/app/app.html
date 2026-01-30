@@ -262,6 +262,10 @@
                       <button class="handover-btn" (click)="showContinueOnPhone()">Continue on Phone</button>
                     }
                   }
+                  
+                  @if (sessionId && isVoiceConnected) {
+                    <button class="quiz-btn" (click)="startQuiz()">Quiz Me</button>
+                  }
 
                   @if (voiceError) {
                     <p class="voice-error">{{ voiceError }}</p>

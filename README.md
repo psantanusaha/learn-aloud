@@ -85,7 +85,7 @@ source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 python app.py
 ```
 
-The backend server will be running on `http://localhost:5000`.
+The backend server will be running on `http://localhost:5001`.
 
 ### Terminal 2 - Frontend
 

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from pdf_processor import PDFProcessor
 from vocal_bridge import VocalBridgeClient
-from agents import Librarian, Navigator
+from agents import Librarian, Navigator, QuizMaster
 
 load_dotenv()
 
@@ -26,6 +26,7 @@ pdf_processor = PDFProcessor()
 vocal_bridge = VocalBridgeClient(os.getenv("VOCAL_BRIDGE_API_KEY", ""))
 librarian = Librarian(UPLOAD_DIR, pdf_processor)
 navigator = Navigator()
+quiz_master = QuizMaster()
 
 # In-memory session store: session_id -> {filepath, pdf_data, filename, outline}
 sessions = {}
@@ -191,6 +192,17 @@ def paper_context(session_id):
         handover_lines.append("=== END HANDOVER ===")
         handover_lines.append("")
         context += "\n".join(handover_lines)
+
+    # If quiz mode is active, replace context with quiz context
+    if session.get("quiz_active"):
+        if not session.get("quiz_context"):
+            quiz_context = quiz_master.generate_quiz_context(
+                pdf_data,
+                outline,
+                filename
+            )
+            session["quiz_context"] = quiz_context
+        context = session["quiz_context"]
 
     return jsonify({
         "session_id": session_id,
@@ -371,6 +383,86 @@ def navigator_references():
     return jsonify({"references": refs, "count": len(refs)})
 
 
+@app.route("/api/quiz/start", methods=["POST"])
+def start_quiz():
+    data = request.get_json()
+    if not data or not data.get("session_id"):
+        return jsonify({"error": "session_id is required"}), 400
+    
+    session_id = data["session_id"]
+    session = sessions.get(session_id)
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+    
+    try:
+        result = quiz_master.start_quiz(
+            session_id,
+            session["pdf_data"],
+            session.get("outline", {}),
+            session.get("filename", "")
+        )
+        
+        # Generate quiz context for the voice agent
+        quiz_context = quiz_master.generate_quiz_context(
+            session["pdf_data"],
+            session.get("outline", {}),
+            session.get("filename", "")
+        )
+        
+        # Store quiz context in session for voice agent to access
+        session["quiz_context"] = quiz_context
+        session["quiz_active"] = True
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"Failed to start quiz: {e}"}), 500
+
+
+@app.route("/api/quiz/end", methods=["POST"])
+def end_quiz():
+    data = request.get_json()
+    if not data or not data.get("session_id"):
+        return jsonify({"error": "session_id is required"}), 400
+    
+    session_id = data["session_id"]
+    session = sessions.get(session_id)
+    if session:
+        session["quiz_active"] = False
+        session["quiz_context"] = None
+    
+    try:
+        result = quiz_master.end_quiz(session_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"Failed to end quiz: {e}"}), 500
+
+
+@app.route("/api/quiz-context/<session_id>", methods=["GET"])
+def quiz_context_endpoint(session_id):
+    """Get quiz context for voice agent when in quiz mode."""
+    session = sessions.get(session_id)
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+    
+    if not session.get("quiz_active"):
+        return jsonify({"error": "Quiz not active"}), 400
+    
+    # If quiz context doesn't exist yet, generate it
+    if not session.get("quiz_context"):
+        quiz_context = quiz_master.generate_quiz_context(
+            session["pdf_data"],
+            session.get("outline", {}),
+            session.get("filename", "")
+        )
+        session["quiz_context"] = quiz_context
+    
+    return jsonify({
+        "session_id": session_id,
+        "context": session["quiz_context"],
+        "quiz_active": True
+    })
+
+
 # ---------------------------------------------------------------------------
 # WebSocket events
 # ---------------------------------------------------------------------------
@@ -420,9 +512,10 @@ def handle_disconnect():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    app.run(debug=True, port=5001, host='0.0.0.0')
     # Suppress noisy Werkzeug 3.x assertion on WebSocket upgrade (cosmetic, not a real error)
     import logging
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-    print("LearnAloud backend running on http://localhost:5000")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)
+    print("LearnAloud backend running on http://localhost:5001")
+    socketio.run(app, host="0.0.0.0", port=5001, debug=True, allow_unsafe_werkzeug=True)

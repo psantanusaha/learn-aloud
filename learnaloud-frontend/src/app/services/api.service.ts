@@ -58,6 +58,10 @@ export class ApiService {
     return this.http.get(`${this.baseUrl}/tunnel-url`);
   }
 
+  startQuiz(sessionId: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/quiz/start`, { session_id: sessionId });
+  }
+
   // ---- WebSocket (Socket.IO) ------------------------------------------------
 
   connectSocket(): void {
