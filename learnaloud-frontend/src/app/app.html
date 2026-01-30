@@ -306,6 +306,10 @@
                       <button class="handover-btn" (click)="showContinueOnPhone()" aria-label="Continue this session on your phone via QR code">Continue on Phone</button>
                     }
                   }
+                  
+                  @if (sessionId && isVoiceConnected) {
+                    <button class="quiz-btn" (click)="startQuiz()">Quiz Me</button>
+                  }
 
                   @if (voiceError) {
                     <p class="voice-error" role="alert">{{ voiceError }}</p>

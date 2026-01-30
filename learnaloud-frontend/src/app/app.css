@@ -1386,6 +1386,25 @@ app-agent-results-panel {
   opacity: 0.9;
 }
 
+/* ── Quiz Button ── */
+.quiz-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #ff6f00, #ff8f00);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.quiz-btn:hover {
+  opacity: 0.9;
+}
+
 /* ── QR Modal ── */
 .qr-modal-overlay {
   position: fixed;
