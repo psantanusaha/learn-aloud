@@ -307,8 +307,8 @@
                     }
                   }
                   
-                  @if (sessionId && isVoiceConnected) {
-                    <button class="quiz-btn" (click)="startQuiz()">Quiz Me</button>
+                  @if (sessionId && isVoiceConnected && !isDebateMode) {
+                    <button class="quiz-btn" (click)="startQuiz()" aria-label="Start a quiz on this paper">Quiz Me</button>
                   }
 
                   @if (voiceError) {

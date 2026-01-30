@@ -546,10 +546,9 @@ def handle_disconnect():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001, host='0.0.0.0')
     # Suppress noisy Werkzeug 3.x assertion on WebSocket upgrade (cosmetic, not a real error)
     import logging
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-    print("LearnAloud backend running on http://localhost:5001")
-    socketio.run(app, host="0.0.0.0", port=5001, debug=True, allow_unsafe_werkzeug=True)
+    print("LearnAloud backend running on http://localhost:5000")
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)

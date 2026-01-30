@@ -329,7 +329,7 @@ export class App implements OnInit, OnDestroy {
         console.error('Upload failed:', err);
         let errorMsg = 'Upload failed. ';
         if (err.status === 0 || err.name === 'TimeoutError') {
-          errorMsg += 'Cannot connect to server. Make sure the backend is running on http://localhost:5001';
+          errorMsg += 'Cannot connect to server. Make sure the backend is running on http://localhost:5000';
         } else if (err.status === 400) {
           errorMsg += err.error?.error || 'Invalid file format.';
         } else if (err.status === 500) {
@@ -1143,59 +1143,31 @@ export class App implements OnInit, OnDestroy {
     this.statusMessage = 'Activating quiz mode...';
     this.cdr.detectChanges();
 
+    // Tell the backend to activate quiz mode for this session
     this.api.startQuiz(this.sessionId).subscribe({
-      next: async (res: any) => {
-        this.statusMessage = 'Quiz mode activated! Reloading tutor with quiz context...';
-        this.cdr.detectChanges();
-        
-        try {
-          // Disconnect current voice session
-          await this.voice.disconnect();
-          
-          // Brief pause to ensure clean disconnect
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Reconnect with quiz context
-          this.api.getVoiceToken('student').subscribe({
-            next: async (tokenRes: any) => {
-              try {
-                await this.voice.connect(tokenRes.livekit_url, tokenRes.token);
-                
-                // Send quiz context instead of regular context
-                this.api.getPaperContext(this.sessionId).subscribe({
-                  next: async (contextRes: any) => {
-                    if (contextRes.context) {
-                      await this.voice.sendContext(contextRes.context);
-                      this.statusMessage = 'Quiz started! The tutor will now ask you questions.';
-                      this.cdr.detectChanges();
-                    }
-                  },
-                  error: (err) => {
-                    console.error('Failed to fetch quiz context:', err);
-                    this.statusMessage = 'Failed to load quiz context';
-                    this.cdr.detectChanges();
-                  }
-                });
-              } catch (e: any) {
-                this.statusMessage = `Failed to reconnect: ${e.message || e}`;
-                this.cdr.detectChanges();
-              }
-            },
-            error: (err) => {
-              this.statusMessage = 'Failed to reconnect for quiz mode';
+      next: (res: any) => {
+        // Fetch quiz context and send it over the existing voice connection
+        this.api.getPaperContext(this.sessionId).subscribe({
+          next: async (contextRes: any) => {
+            if (contextRes.context) {
+              await this.voice.sendContext(contextRes.context);
+              this.statusMessage = 'Quiz started! The tutor will now ask you questions.';
+              this.activity.post({ category: 'state', title: 'Quiz mode activated' });
               this.cdr.detectChanges();
             }
-          });
-        } catch (e: any) {
-          this.statusMessage = `Error entering quiz mode: ${e.message || e}`;
-          this.cdr.detectChanges();
-        }
+          },
+          error: (err) => {
+            console.error('Failed to fetch quiz context:', err);
+            this.statusMessage = 'Failed to load quiz context';
+            this.cdr.detectChanges();
+          },
+        });
       },
       error: (err) => {
         console.error('Failed to start quiz:', err);
         this.statusMessage = 'Failed to start quiz mode';
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
