@@ -1,0 +1,45 @@
+@if (stats.length === 0) {
+  <div class="empty-state">No sessions recorded yet. Start a voice session to see your history.</div>
+} @else {
+  <div class="stats-list">
+    @for (s of stats; track s.sessionId) {
+      <div class="stats-card" [class.stats-card-expanded]="expandedId === s.sessionId" (click)="toggleExpand(s.sessionId)">
+        <div class="stats-header">
+          <span class="stats-date">{{ s.date | date:'MMM d, y h:mm a' }}</span>
+          <span class="stats-file">{{ s.fileName }}</span>
+        </div>
+        <div class="stats-row">
+          <span class="stats-meta">{{ s.durationEstimateMinutes }} min</span>
+          <span class="stats-meta">{{ s.messageCount }} messages</span>
+        </div>
+        @if (expandedId === s.sessionId) {
+          <div class="stats-detail">
+            <!-- Message ratio bar -->
+            <div class="ratio-bar-wrapper">
+              <span class="ratio-label">Student</span>
+              <svg class="ratio-bar" viewBox="0 0 200 16">
+                <rect x="0" y="0" width="200" height="16" rx="4" fill="#e8f5e9"/>
+                <rect x="0" y="0" [attr.width]="studentRatio(s) * 2" height="16" rx="4" fill="#5c6bc0"/>
+              </svg>
+              <span class="ratio-label">Tutor</span>
+            </div>
+            <div class="ratio-counts">
+              <span>{{ s.studentMessages }} student</span>
+              <span>{{ s.tutorMessages }} tutor</span>
+            </div>
+            @if (s.topicsCovered.length > 0) {
+              <div class="topics">
+                @for (topic of s.topicsCovered; track topic) {
+                  <span class="topic-pill">{{ topic }}</span>
+                }
+              </div>
+            }
+            @if (s.topicSummary) {
+              <p class="stats-summary">{{ s.topicSummary }}</p>
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+}

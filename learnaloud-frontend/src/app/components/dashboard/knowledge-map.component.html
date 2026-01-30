@@ -1,0 +1,78 @@
+@if (concepts.length === 0) {
+  <div class="empty-state">No concepts tracked yet. Complete a voice session to see your knowledge map.</div>
+} @else {
+  <svg [attr.viewBox]="'0 0 ' + width + ' ' + height" class="knowledge-svg">
+    <!-- Edges -->
+    @for (edge of edges; track $index) {
+      <line
+        [attr.x1]="edge.x1" [attr.y1]="edge.y1"
+        [attr.x2]="edge.x2" [attr.y2]="edge.y2"
+        stroke="#d0d0d0" stroke-width="1.5"
+      />
+    }
+    <!-- Nodes -->
+    @for (node of nodes; track node.concept.id) {
+      <g class="concept-node" (click)="selectNode(node.concept)">
+        <circle
+          [attr.cx]="node.x" [attr.cy]="node.y" [attr.r]="node.r"
+          [attr.fill]="statusColor(node.concept.status)"
+          [attr.opacity]="selectedNode && selectedNode.id !== node.concept.id ? 0.4 : 0.85"
+          [attr.stroke]="selectedNode?.id === node.concept.id ? '#37352f' : 'none'"
+          stroke-width="2"
+        />
+        <!-- Background rectangle for text readability -->
+        <rect
+          [attr.x]="node.x - 35"
+          [attr.y]="node.y - 8"
+          width="70"
+          height="16"
+          fill="rgba(255, 255, 255, 0.9)"
+          rx="4"
+          pointer-events="none"
+        />
+        <text
+          [attr.x]="node.x" [attr.y]="node.y + 4"
+          text-anchor="middle"
+          fill="#37352f"
+          font-size="12"
+          font-weight="700"
+          pointer-events="none"
+        >{{ node.concept.name.length > 12 ? node.concept.name.substring(0, 10) + '..' : node.concept.name }}</text>
+      </g>
+    }
+  </svg>
+
+  <!-- Legend -->
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#5c6bc0"></span>Learning</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#ff9800"></span>Reviewing</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#4caf50"></span>Mastered</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#e53935"></span>Struggling</span>
+  </div>
+
+  <!-- Detail panel -->
+  @if (selectedNode) {
+    <div class="detail-panel">
+      <h4>{{ selectedNode.name }}</h4>
+      <div class="detail-row">
+        <span class="detail-label">Mastery</span>
+        <div class="mastery-bar">
+          <div class="mastery-fill" [style.width.%]="selectedNode.mastery" [style.background]="statusColor(selectedNode.status)"></div>
+        </div>
+        <span class="detail-value">{{ selectedNode.mastery }}%</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Status</span>
+        <span class="detail-value status-pill" [style.background]="statusColor(selectedNode.status)">{{ selectedNode.status }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Last Reviewed</span>
+        <span class="detail-value">{{ selectedNode.lastReviewed | date:'MMM d, y' }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Sessions</span>
+        <span class="detail-value">{{ selectedNode.sessionIds.length }}</span>
+      </div>
+    </div>
+  }
+}

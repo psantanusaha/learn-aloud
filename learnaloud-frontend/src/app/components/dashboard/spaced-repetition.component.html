@@ -1,0 +1,35 @@
+<!-- Due Now -->
+<div class="sr-section">
+  <h4>Due for Review</h4>
+  @if (dueForReview.length === 0) {
+    <p class="sr-empty">No concepts due for review today.</p>
+  } @else {
+    <div class="due-list">
+      @for (item of dueForReview; track item.concept.id) {
+        <div class="due-item">
+          <span class="due-pill" [style.background]="statusColor(item.concept.status)">{{ item.concept.name }}</span>
+          <span class="due-mastery">{{ item.concept.mastery }}%</span>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<!-- 14-Day Calendar -->
+<div class="sr-section">
+  <h4>Next 14 Days</h4>
+  <div class="calendar-grid">
+    @for (day of calendarDays; track day.date) {
+      <div class="calendar-cell" [class.calendar-today]="isToday(day.date)" [class.calendar-has-items]="day.items.length > 0">
+        <span class="calendar-date">{{ day.label }}</span>
+        <div class="calendar-pills">
+          @for (item of day.items; track item.concept.id) {
+            <span class="calendar-pill" [style.background]="statusColor(item.concept.status)" [title]="item.concept.name">
+              {{ item.concept.name.length > 8 ? item.concept.name.substring(0, 6) + '..' : item.concept.name }}
+            </span>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>

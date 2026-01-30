@@ -1,0 +1,32 @@
+<div class="dashboard-container">
+  <header class="dashboard-header">
+    <div class="dashboard-header-left">
+      <h1>Learning Dashboard</h1>
+      <span class="dashboard-subtitle">{{ concepts.length }} concepts tracked</span>
+    </div>
+    <button class="back-btn" (click)="goBack()">Back to LearnAloud</button>
+  </header>
+
+  <div class="dashboard-grid">
+    <!-- Knowledge Map -->
+    <section class="dashboard-section map-section">
+      <h2>Knowledge Map</h2>
+      <app-knowledge-map [concepts]="concepts"></app-knowledge-map>
+    </section>
+
+    <!-- Spaced Repetition -->
+    <section class="dashboard-section sr-section">
+      <h2>Spaced Repetition</h2>
+      <app-spaced-repetition
+        [dueForReview]="dueForReview"
+        [upcomingReviews]="upcomingReviews"
+      ></app-spaced-repetition>
+    </section>
+
+    <!-- Session History -->
+    <section class="dashboard-section stats-section">
+      <h2>Session History</h2>
+      <app-session-stats [stats]="sessionStats"></app-session-stats>
+    </section>
+  </div>
+</div>

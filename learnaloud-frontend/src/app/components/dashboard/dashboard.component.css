@@ -1,0 +1,97 @@
+.dashboard-container {
+  min-height: 100vh;
+  background: #f0f0f0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #37352f;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: #f7f7f5;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.dashboard-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.dashboard-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.dashboard-subtitle {
+  font-size: 13px;
+  color: #9b9b9b;
+}
+
+.back-btn {
+  padding: 8px 18px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: transparent;
+  color: #5c6bc0;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.back-btn:hover {
+  background: #f5f5f5;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.dashboard-section {
+  background: #f7f7f5;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  padding: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-section h2 {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #37352f;
+}
+
+.map-section {
+  grid-column: 1 / -1;
+}
+
+.sr-section {
+  grid-column: 1;
+}
+
+.stats-section {
+  grid-column: 2;
+}
+
+@media (max-width: 800px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .map-section,
+  .sr-section,
+  .stats-section {
+    grid-column: 1;
+  }
+}

@@ -1,0 +1,75 @@
+@if (isLoading || results.length > 0) {
+  <div class="agent-panel">
+    <h3>Agent Results</h3>
+
+    @if (isLoading) {
+      <div class="agent-loading">
+        <span class="spinner"></span>
+        <span>Agent is working...</span>
+      </div>
+    }
+
+    @for (result of results; track $index) {
+      @if (result.type === 'arxiv_search') {
+        <div class="result-section">
+          <div class="result-label-row">
+            <p class="result-label">ArXiv search: "{{ result.query }}"</p>
+            @if (result.mcp_info) {
+              <button class="mcp-badge" (click)="toggleMcpDetail($index)" title="View MCP protocol details">
+                MCP
+              </button>
+            }
+          </div>
+          @if (result.mcp_info && expandedMcpIndex === $index) {
+            <div class="mcp-detail">
+              <div class="mcp-detail-row">
+                <span class="mcp-detail-label">Server:</span>
+                <span class="mcp-detail-value">{{ result.mcp_info.server }}</span>
+              </div>
+              <div class="mcp-detail-row">
+                <span class="mcp-detail-label">Tool:</span>
+                <span class="mcp-detail-value">{{ result.mcp_info.tool }}</span>
+              </div>
+              <div class="mcp-detail-row">
+                <span class="mcp-detail-label">Args:</span>
+                <span class="mcp-detail-value mcp-detail-mono">{{ formatArgs(result.mcp_info.arguments) }}</span>
+              </div>
+              <div class="mcp-detail-row">
+                <span class="mcp-detail-label">Duration:</span>
+                <span class="mcp-detail-value">{{ formatDuration(result.mcp_info.duration_ms) }}</span>
+              </div>
+            </div>
+          }
+          @for (paper of result.papers; track paper.arxiv_id) {
+            <div class="paper-card">
+              <p class="paper-title">{{ cleanLatex(paper.title) }}</p>
+              <p class="paper-authors">{{ paper.authors.join(', ') }} &middot; {{ paper.published }}</p>
+              <p class="paper-summary">{{ cleanLatex(paper.summary) }}</p>
+              <button class="paper-download" (click)="onDownload(paper.arxiv_id)">
+                Download
+              </button>
+            </div>
+          }
+          @if (result.papers.length === 0) {
+            <p class="no-results">No papers found.</p>
+          }
+        </div>
+      }
+
+      @if (result.type === 'citation') {
+        <div class="result-section">
+          <p class="result-label">Citation Lookup</p>
+          @if (result.result.found) {
+            <div class="citation-card">
+              <p class="citation-number">[{{ result.result.number }}]</p>
+              <p class="citation-text">{{ result.result.text }}</p>
+              <p class="citation-page">Page {{ result.result.page }}</p>
+            </div>
+          } @else {
+            <p class="no-results">Citation "{{ result.result.reference }}" not found.</p>
+          }
+        </div>
+      }
+    }
+  </div>
+}

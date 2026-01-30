@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, timeout, catchError, throwError } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 
 @Injectable({ providedIn: 'root' })
@@ -15,7 +15,15 @@ export class ApiService {
   uploadPDF(file: File): Observable<any> {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post(`${this.baseUrl}/upload-pdf`, formData);
+    return this.http.post(`${this.baseUrl}/upload-pdf`, formData).pipe(
+      timeout(60000), // 60 second timeout
+      catchError((error) => {
+        if (error.name === 'TimeoutError') {
+          return throwError(() => ({ status: 0, message: 'Request timeout. The server took too long to respond.' }));
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   searchText(sessionId: string, text: string, page: number): Observable<any> {
@@ -26,21 +34,36 @@ export class ApiService {
     });
   }
 
-  getVoiceToken(participant: string = 'student', sessionId: string = ''): Observable<any> {
-    const params: any = { participant };
-    if (sessionId) params.session_id = sessionId;
-    return this.http.get(`${this.baseUrl}/voice-token`, { params });
+  getVoiceToken(participant: string = 'student'): Observable<any> {
+    return this.http.post(`${this.baseUrl}/voice-token`, { participant });
   }
 
   getPdfUrl(sessionId: string): string {
     return `${this.baseUrl}/pdf/${sessionId}`;
   }
 
+  getPaperContext(sessionId: string): Observable<any> {
+    return this.http.get(`${this.baseUrl}/paper-context/${sessionId}`);
+  }
+
+  getSessionState(sessionId: string): Observable<any> {
+    return this.http.get(`${this.baseUrl}/session/${sessionId}/state`);
+  }
+
+  updateSessionState(sessionId: string, state: any): Observable<any> {
+    return this.http.post(`${this.baseUrl}/session/${sessionId}/state`, state);
+  }
+
+  getTunnelUrl(): Observable<any> {
+    return this.http.get(`${this.baseUrl}/tunnel-url`);
+  }
+
   // ---- WebSocket (Socket.IO) ------------------------------------------------
 
   connectSocket(): void {
     if (this.socket?.connected) return;
-    this.socket = io('http://localhost:5000', {
+    this.socket = io(window.location.origin, {
+      path: '/socket.io',
       transports: ['websocket', 'polling'],
     });
   }

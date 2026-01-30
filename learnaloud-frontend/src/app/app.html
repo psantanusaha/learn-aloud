@@ -1,136 +1,474 @@
-<div class="app-container">
-  <header class="app-header">
-    <h1>LearnAloud</h1>
-    <span class="subtitle">Voice-Synchronized PDF Teaching Assistant</span>
-  </header>
+<app-tutorial *ngIf="showTutorial" (startApp)="startAppFromTutorial()"></app-tutorial>
 
-  <div class="main-content">
-    <section class="pdf-section">
-      @if (pdfUrl) {
-        <app-pdf-viewer
-          [pdfUrl]="pdfUrl"
-          [highlightCommands]="highlightCommands"
-        ></app-pdf-viewer>
-      } @else {
-        <div class="upload-area">
-          <div class="upload-prompt">
-            <p class="upload-icon">&#128196;</p>
-            <p>Upload a PDF to get started</p>
-            <label class="upload-btn" for="pdfInput">Choose PDF File</label>
-            <input
-              id="pdfInput"
-              type="file"
-              accept="application/pdf"
-              (change)="onFileSelected($event)"
-              hidden
-            />
-          </div>
+<div *ngIf="!showTutorial">
+  @if (!isActivityMonitorRoute && !isDashboardRoute) {
+    <div class="app-container">
+      <header class="app-header">
+        <div class="header-left">
+          <h1>LearnAloud</h1>
+          <span class="subtitle">Voice-Synchronized PDF Teaching Assistant</span>
         </div>
-      }
-    </section>
+        @if (userName) {
+          <div class="header-user">
+            <span class="user-avatar">{{ userName.charAt(0).toUpperCase() }}</span>
+            <span class="user-name">{{ userName }}</span>
+            <button class="dashboard-link" (click)="openDashboard()">Dashboard</button>
+            <button class="logout-btn" (click)="logout()">Log out</button>
+          </div>
+        }
+      </header>
 
-    <aside class="controls-section">
-      <div class="controls-panel">
-        <h2>Controls</h2>
-
-        @if (pdfUrl) {
-          <p class="file-name">{{ uploadedFileName }}</p>
-
-          <!-- Voice controls -->
-          <div class="voice-controls">
-            @if (!isVoiceConnected && !isVoiceConnecting) {
-              <button
-                class="voice-btn voice-start"
-                (click)="startVoiceSession()"
-              >
-                Start Voice Session
+      <div class="main-content three-column-layout">
+        <!-- Left Sidebar -->
+        <aside class="left-sidebar">
+          <div class="sidebar-content">
+            <div class="sidebar-header">
+              <h2 class="sidebar-title">LearnAloud</h2>
+            </div>
+            
+            <nav class="sidebar-nav">
+              <button class="nav-item" (click)="startNewSession()" [class.active]="!pdfUrl">
+                <span class="nav-icon">💬</span>
+                <span class="nav-label">New Session</span>
               </button>
+              <button class="nav-item" (click)="toggleSessionHistory()" [class.active]="showSessionHistory">
+                <span class="nav-icon">📜</span>
+                <span class="nav-label">Session History</span>
+              </button>
+              <button class="nav-item" (click)="openDashboard()">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Dashboard</span>
+              </button>
+              <button class="nav-item" (click)="focusArxivSearch()">
+                <span class="nav-icon">🔍</span>
+                <span class="nav-label">Paper Search</span>
+              </button>
+              <button class="nav-item" (click)="openActivityMonitor()">
+                <span class="nav-icon">📈</span>
+                <span class="nav-label">Activity Monitor</span>
+              </button>
+            </nav>
+
+            @if (sessionHistory.length > 0) {
+              <div class="sidebar-chats">
+                <h3 class="chats-title">Recent Sessions</h3>
+                <div class="chats-list">
+                  @for (session of sessionHistory.slice(0, 5); track session.id) {
+                    <div class="chat-item" (click)="loadSession(session)">
+                      <span class="chat-icon">📄</span>
+                      <div class="chat-info">
+                        <p class="chat-name">{{ session.fileName.length > 25 ? session.fileName.substring(0, 25) + '...' : session.fileName }}</p>
+                        <p class="chat-date">{{ session.date | date:'MMM d, h:mm a' }}</p>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            } @else {
+              <div class="sidebar-chats empty">
+                <div class="empty-chats">
+                  <span class="empty-icon">📦</span>
+                  <p class="empty-text">No sessions yet</p>
+                </div>
+              </div>
             }
 
-            @if (isVoiceConnecting) {
-              <button class="voice-btn voice-start" disabled>
-                Connecting...
+            <div class="sidebar-footer">
+              <button class="footer-btn" (click)="openDashboard()">
+                <span class="footer-icon">⚙️</span>
+                <span>Settings</span>
               </button>
+              @if (userName) {
+                <div class="footer-user">
+                  <span class="footer-avatar">{{ userName.charAt(0).toUpperCase() }}</span>
+                  <span class="footer-name">{{ userName }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        </aside>
+
+        <section class="pdf-section">
+          @if (agentActivityMessage) {
+            <div class="agent-activity-toast">
+              <span class="agent-activity-spinner"></span>
+              <span>{{ agentActivityMessage }}</span>
+            </div>
+          }
+
+          @if (paperStack.length > 1) {
+            <div class="paper-breadcrumb">
+              <button (click)="switchToMainPaper()" [class.active]="activePaperIndex === 0">
+                {{ paperStack[0].fileName }}
+              </button>
+              @if (activePaperIndex > 0) {
+                <span class="breadcrumb-arrow">&rarr;</span>
+                <span class="breadcrumb-active">{{ paperStack[activePaperIndex].referenceLabel }}</span>
+              }
+            </div>
+          }
+
+          @if (pdfUrl) {
+            <div class="pdf-viewer-container" [class.split-view]="showPreviewPanel">
+              <div class="main-viewer">
+                <app-pdf-viewer
+                  [pdfUrl]="getActivePdfUrl()"
+                  [sessionId]="getActiveSessionId()"
+                  (pageChanged)="onPageChanged($event)"
+                ></app-pdf-viewer>
+              </div>
+              @if (showPreviewPanel && previewPaperIndex !== null) {
+                <div class="split-handle" (mousedown)="onSplitHandleMouseDown($event)"></div>
+                <div class="preview-panel" [style.flex]="'0 0 ' + previewPanelWidth + '%'">
+                  <div class="preview-header">
+                    <h3>{{ getPreviewPaperName() }}</h3>
+                    <div class="preview-actions">
+                      <button class="preview-make-active" (click)="switchToPreviewPaper()">Make Active</button>
+                      <button class="preview-close" (click)="closePreview()">&times;</button>
+                    </div>
+                  </div>
+                  <app-pdf-viewer
+                    [pdfUrl]="getPreviewPdfUrl()"
+                    [sessionId]="getPreviewSessionId()"
+                    [isPreview]="true"
+                  ></app-pdf-viewer>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="upload-area">
+              @if (lastSession) {
+                <div class="welcome-back">
+                  <h2 class="welcome-back-title">Welcome back, {{ userName }}!</h2>
+                  <div class="welcome-back-card">
+                    <h3 class="welcome-back-label">Your last session</h3>
+                    <p class="welcome-back-file">{{ lastSession.fileName }}</p>
+                    <p class="welcome-back-date">{{ lastSession.date | date:'MMM d, y \'at\' h:mm a' }}</p>
+                    <p class="welcome-back-summary">{{ lastSession.topicSummary }}</p>
+                    <p class="welcome-back-meta">{{ lastSession.transcript.length }} messages exchanged</p>
+                  </div>
+                  <p class="welcome-back-hint">Upload the same PDF to continue where you left off, or choose a new one.</p>
+                  <label class="upload-btn" for="pdfInput">Upload PDF</label>
+                  <input
+                    id="pdfInput"
+                    type="file"
+                    accept="application/pdf"
+                    (change)="onFileSelected($event)"
+                    hidden
+                  />
+
+                  @if (sessionHistory.length > 1) {
+                    <div class="all-sessions">
+                      <h3 class="all-sessions-title">All Sessions</h3>
+                      <div class="all-sessions-list">
+                        @for (session of sessionHistory; track session.id) {
+                          <div class="all-sessions-item" [class.all-sessions-item-expanded]="expandedSessionId === session.id" (click)="toggleSessionExpand(session.id)">
+                            <div class="all-sessions-item-row">
+                              <span class="all-sessions-time">{{ session.date | date:'MMM d, h:mm a' }}</span>
+                              <span class="all-sessions-file">{{ session.fileName }}</span>
+                              <span class="all-sessions-count">{{ session.transcript.length }} msg</span>
+                            </div>
+                            <p class="all-sessions-summary">{{ session.topicSummary }}</p>
+                            @if (expandedSessionId === session.id) {
+                              <div class="all-sessions-transcript">
+                                @for (entry of session.transcript.slice(0, 8); track $index) {
+                                  <div class="all-sessions-entry" [class.session-entry-you]="entry.sender === 'you'">
+                                    <span class="transcript-sender">{{ entry.sender === 'you' ? 'You' : 'Tutor' }}:</span>
+                                    {{ entry.text.length > 200 ? entry.text.substring(0, 200) + '...' : entry.text }}
+                                  </div>
+                                }
+                                @if (session.transcript.length > 8) {
+                                  <div class="session-more">+ {{ session.transcript.length - 8 }} more messages</div>
+                                }
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="upload-prompt">
+                  <p class="upload-icon">&#128196;</p>
+                  <p>Upload a PDF to get started</p>
+                  <label class="upload-btn" for="pdfInput">Choose PDF File</label>
+                  <input
+                    id="pdfInput"
+                    type="file"
+                    accept="application/pdf"
+                    (change)="onFileSelected($event)"
+                    hidden
+                  />
+                </div>
+              }
+            </div>
+          }
+        </section>
+
+        <!-- Desktop controls sidebar -->
+        @if (!isMobileDevice) {
+          <aside class="controls-section">
+            <div class="controls-panel">
+              <h2>Controls</h2>
+
+              @if (pdfUrl) {
+                <p class="file-name">{{ uploadedFileName }}</p>
+
+                <!-- Voice controls -->
+                <div class="voice-controls">
+                  @if (!isVoiceConnected && !isVoiceConnecting) {
+                    <button
+                      class="voice-btn voice-start"
+                      (click)="startVoiceSession()"
+                    >
+                      Start Voice Session
+                    </button>
+                  }
+
+                  @if (isVoiceConnecting) {
+                    <button class="voice-btn voice-start" disabled>
+                      Connecting...
+                    </button>
+                  }
+
+                  @if (isVoiceConnected) {
+                    <div class="voice-active" [class.voice-paused]="isPaused">
+                      <span class="voice-indicator"></span>
+                      <span>{{ isPaused ? 'Session Paused' : 'Voice Active' }}</span>
+                    </div>
+                    <div class="voice-action-row">
+                      <button
+                        class="voice-btn voice-pause"
+                        (click)="togglePause()"
+                      >
+                        {{ isPaused ? 'Resume' : 'Pause' }}
+                      </button>
+                      <button
+                        class="voice-btn voice-mic"
+                        (click)="toggleMic()"
+                        [disabled]="isPaused"
+                      >
+                        {{ isMicMuted ? 'Unmute Mic' : 'Mute Mic' }}
+                      </button>
+                      <button
+                        class="voice-btn voice-disconnect"
+                        (click)="disconnectVoice()"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                    @if (sessionId) {
+                      <button class="handover-btn" (click)="showContinueOnPhone()">Continue on Phone</button>
+                    }
+                  }
+
+                  @if (voiceError) {
+                    <p class="voice-error">{{ voiceError }}</p>
+                  }
+                </div>
+
+                <hr class="controls-divider" />
+
+                <button
+                  class="monitor-btn"
+                  (click)="openActivityMonitor()"
+                >
+                  Activity Monitor
+                </button>
+                <label class="upload-btn reupload" for="pdfInputAlt">Upload Different PDF</label>
+                <input
+                  id="pdfInputAlt"
+                  type="file"
+                  accept="application/pdf"
+                  (change)="onFileSelected($event)"
+                  hidden
+                />
+              }
+
+              @if (statusMessage) {
+                <p class="status">{{ statusMessage }}</p>
+              }
+
+              @if (mcpSearching) {
+                <div class="mcp-search-indicator">
+                  <span class="mcp-search-spinner"></span>
+                  <span>Searching ArXiv for "{{ mcpSearchQuery }}"...</span>
+                </div>
+              }
+            </div>
+
+            @if (pdfUrl) {
+              <!-- PDF References -->
+              @if (pdfReferences.length > 0) {
+                <div class="references-panel">
+                  <div class="references-header" (click)="toggleReferences()">
+                    <h3>PDF References ({{ pdfReferences.length }})</h3>
+                    <span class="references-toggle">{{ showReferences ? '▾' : '▸' }}</span>
+                  </div>
+                  @if (showReferences) {
+                    <div class="references-list">
+                      @for (ref of pdfReferences; track ref.number) {
+                        <div class="reference-item">
+                          <span class="reference-number">[{{ ref.number }}]</span>
+                          <span class="reference-text">{{ ref.text.replace('[' + ref.number + '] ', '') }}</span>
+                          <button class="reference-search-btn" (click)="searchReference(ref)" [disabled]="isAgentLoading" title="Search ArXiv for this paper">
+                            Search
+                          </button>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              } @else if (referencesLoading) {
+                <div class="references-panel">
+                  <p class="references-loading">Loading references...</p>
+                </div>
+              }
+
+              <!-- Agent Tools (excluding citation lookup) -->
+              <div class="agent-tools">
+                <div class="agent-tools-header">
+                  <h3>Agent Tools</h3>
+                  @if (mcpConnected) {
+                    <button class="mcp-status" (click)="toggleMcpTools()" title="MCP server connected — click to view tools">
+                      <span class="mcp-dot"></span>
+                      MCP Connected
+                    </button>
+                  }
+                </div>
+                @if (showMcpTools && mcpTools.length > 0) {
+                  <div class="mcp-tools-list">
+                    <p class="mcp-tools-title">Available MCP Tools</p>
+                    @for (tool of mcpTools; track tool.name) {
+                      <div class="mcp-tool-item">
+                        <span class="mcp-tool-name">{{ tool.name }}</span>
+                        <span class="mcp-tool-desc">{{ tool.description }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+                <div class="agent-tool-row">
+                  <input
+                    type="text"
+                    class="agent-input"
+                    placeholder="Search ArXiv..."
+                    [(ngModel)]="arxivQuery"
+                    (keyup.enter)="triggerArxivSearch()"
+                  />
+                  <button class="agent-tool-btn" (click)="triggerArxivSearch()" [disabled]="isAgentLoading">
+                    Search
+                  </button>
+                </div>
+              </div>
             }
 
+            <!-- Transcript (collapsible) -->
+            @if (isVoiceConnected && transcriptEntries.length > 0) {
+              <div class="references-panel transcript-panel">
+                <div class="references-header" (click)="toggleTranscript()">
+                  <h3>Transcript ({{ transcriptEntries.length }})</h3>
+                  <span class="references-toggle">{{ showTranscript ? '&#9662;' : '&#9656;' }}</span>
+                </div>
+                @if (showTranscript) {
+                  <div class="transcript-messages">
+                    @for (entry of transcriptEntries; track entry.id) {
+                      <div class="transcript-entry" [class.transcript-you]="entry.sender === 'you'" [class.transcript-agent]="entry.sender === 'agent'" [class.transcript-partial]="!entry.isFinal">
+                        <span class="transcript-sender">{{ entry.sender === 'you' ? 'You' : 'Tutor' }}:</span>
+                        {{ entry.text }}
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- Agent Results with notification -->
+            <div class="agent-results-wrapper" [class.has-new-results]="hasNewResults" (click)="clearNewResults()">
+              @if (hasNewResults) {
+                <div class="new-results-badge">New results</div>
+              }
+              <app-agent-results-panel
+                [results]="agentResults"
+                [isLoading]="isAgentLoading"
+                (downloadPaper)="onDownloadPaper($event)"
+              ></app-agent-results-panel>
+            </div>
+          </aside>
+        }
+
+        <!-- Mobile floating toolbar -->
+        @if (isMobileDevice && pdfUrl) {
+          <div class="mobile-toolbar">
             @if (isVoiceConnected) {
-              <div class="voice-active">
+              <div class="mobile-status">
                 <span class="voice-indicator"></span>
-                <span>Voice Active</span>
+                <span class="mobile-status-text">{{ isPaused ? 'Paused' : 'Live' }}</span>
               </div>
-              <div class="voice-action-row">
-                <button
-                  class="voice-btn voice-mic"
-                  (click)="toggleMic()"
-                >
-                  {{ isMicMuted ? 'Unmute Mic' : 'Mute Mic' }}
-                </button>
-                <button
-                  class="voice-btn voice-disconnect"
-                  (click)="disconnectVoice()"
-                >
-                  Disconnect
-                </button>
-              </div>
-            }
-
-            @if (voiceError) {
-              <p class="voice-error">{{ voiceError }}</p>
+              <button class="mobile-btn" (click)="toggleMic()" [disabled]="isPaused" [class.mobile-btn-active]="isMicMuted">
+                {{ isMicMuted ? 'Unmute' : 'Mute' }}
+              </button>
+              <button class="mobile-btn" (click)="togglePause()">
+                {{ isPaused ? 'Resume' : 'Pause' }}
+              </button>
+              <button class="mobile-btn mobile-btn-transcript" (click)="toggleMobileTranscript()">
+                Chat
+                @if (transcriptEntries.length > 0) {
+                  <span class="mobile-badge">{{ transcriptEntries.length }}</span>
+                }
+              </button>
+              <button class="mobile-btn mobile-btn-danger" (click)="disconnectVoice()">
+                End
+              </button>
+            } @else {
+              <button class="mobile-btn mobile-btn-start" (click)="startVoiceSession()" [disabled]="isVoiceConnecting">
+                {{ isVoiceConnecting ? 'Connecting...' : 'Start Tutor' }}
+              </button>
             }
           </div>
 
-          <hr class="controls-divider" />
+          @if (micError) {
+            <div class="mobile-mic-error">{{ micError }}</div>
+          }
 
-          <button
-            class="demo-btn"
-            (click)="startDemo()"
-            [disabled]="isDemoRunning"
-          >
-            {{ isDemoRunning ? 'Demo Running...' : 'Start Teaching Demo' }}
-          </button>
-          <label class="upload-btn reupload" for="pdfInputAlt">Upload Different PDF</label>
-          <input
-            id="pdfInputAlt"
-            type="file"
-            accept="application/pdf"
-            (change)="onFileSelected($event)"
-            hidden
-          />
-        }
-
-        @if (statusMessage) {
-          <p class="status">{{ statusMessage }}</p>
+          <!-- Mobile transcript overlay -->
+          @if (showMobileTranscript && transcriptEntries.length > 0) {
+            <div class="mobile-transcript-overlay" (click)="toggleMobileTranscript()">
+              <div class="mobile-transcript-panel" (click)="$event.stopPropagation()">
+                <div class="mobile-transcript-header">
+                  <h3>Transcript</h3>
+                  <button class="mobile-transcript-close" (click)="toggleMobileTranscript()">&times;</button>
+                </div>
+                <div class="mobile-transcript-messages">
+                  @for (entry of transcriptEntries; track entry.id) {
+                    <div class="transcript-entry" [class.transcript-you]="entry.sender === 'you'" [class.transcript-agent]="entry.sender === 'agent'" [class.transcript-partial]="!entry.isFinal">
+                      <span class="transcript-sender">{{ entry.sender === 'you' ? 'You' : 'Tutor' }}:</span>
+                      {{ entry.text }}
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          }
         }
       </div>
+    </div>
+  }
+  <router-outlet></router-outlet>
 
-      @if (isVoiceConnected && transcriptEntries.length > 0) {
-        <div class="transcript-panel">
-          <h3>Transcript</h3>
-          <div class="transcript-messages">
-            @for (entry of transcriptEntries; track entry.id) {
-              <div class="transcript-entry" [class.transcript-you]="entry.sender === 'you'" [class.transcript-agent]="entry.sender === 'agent'" [class.transcript-partial]="!entry.isFinal">
-                <span class="transcript-sender">{{ entry.sender === 'you' ? 'You' : 'Tutor' }}:</span>
-                {{ entry.text }}
-              </div>
-            }
-          </div>
+  @if (showQrModal) {
+    <div class="qr-modal-overlay" (click)="closeQrModal()">
+      <div class="qr-modal" (click)="$event.stopPropagation()">
+        <h2>Continue on Phone</h2>
+        <p class="qr-subtitle">Scan this QR code to continue the session on your phone</p>
+        <img class="qr-code-image" [src]="qrCodeDataUrl" alt="QR Code" width="256" height="256" />
+        <div class="qr-url-container">
+          <input class="qr-url-input" type="text" [value]="handoverUrl" readonly />
+          <button class="qr-copy-btn" (click)="copyUrlToClipboard()">Copy</button>
         </div>
-      }
-
-      <div class="instructions">
-        <h3>How It Works</h3>
-        <ol>
-          <li>Upload a PDF document</li>
-          <li>Click <strong>Start Voice Session</strong> to talk to the AI tutor</li>
-          <li>Watch as the AI tutor highlights key concepts in real-time</li>
-        </ol>
-        <p class="note">
-          Use <strong>Start Voice Session</strong> to connect to the Vocal Bridge
-          AI agent via LiveKit. The agent will speak, listen, and highlight
-          relevant text as it teaches. The <strong>Teaching Demo</strong> button
-          runs a simulated highlight sequence for testing without a voice agent.
-        </p>
+        <p class="qr-note">Both devices must be on the same WiFi network</p>
+        <button class="qr-close-btn" (click)="closeQrModal()">Close</button>
       </div>
-    </aside>
-  </div>
+    </div>
+  }
 </div>

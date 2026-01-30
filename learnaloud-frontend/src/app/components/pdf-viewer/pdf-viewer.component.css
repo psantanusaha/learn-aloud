@@ -61,3 +61,28 @@
   left: 0;
   pointer-events: none;
 }
+
+@media (max-width: 768px) {
+  .canvas-container {
+    padding: 4px;
+  }
+
+  .pdf-controls {
+    gap: 8px;
+    padding: 6px;
+  }
+
+  .pdf-controls button {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .page-info {
+    font-size: 12px;
+  }
+
+  .page-wrapper canvas {
+    max-width: 100%;
+    height: auto;
+  }
+}

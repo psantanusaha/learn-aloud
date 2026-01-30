@@ -1,0 +1,37 @@
+<div class="monitor-container">
+  <header class="monitor-header">
+    <h1>LearnAloud Activity Monitor</h1>
+  </header>
+
+  <div class="state-bar">
+    <span class="state-item" [class.state-active]="state.voiceConnected" [class.state-paused]="state.voicePaused">
+      <span class="state-dot"></span>
+      Voice: {{ state.voiceConnected ? (state.voicePaused ? 'Paused' : 'Active') : 'Off' }}
+    </span>
+    <span class="state-item" [class.state-active]="state.mcpConnected">
+      <span class="state-dot"></span>
+      MCP: {{ state.mcpConnected ? 'Connected' : 'Off' }}
+    </span>
+    @if (state.fileName) {
+      <span class="state-file">{{ state.fileName }}</span>
+    }
+  </div>
+
+  <div class="timeline-entries">
+    @if (events.length === 0) {
+      <div class="empty-state">Waiting for activity events...</div>
+    }
+    @for (event of events; track event.id) {
+      <div class="timeline-row">
+        <span class="timeline-time">{{ formatTime(event.timestamp) }}</span>
+        <span class="timeline-badge badge-{{ event.category }}">{{ categoryLabel(event.category) }}</span>
+        <div class="timeline-content">
+          <span class="timeline-title">{{ event.title }}</span>
+          @if (event.detail) {
+            <span class="timeline-detail">{{ event.detail }}</span>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>

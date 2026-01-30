@@ -1,0 +1,99 @@
+.sr-section {
+  margin-bottom: 16px;
+}
+
+.sr-section h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #37352f;
+}
+
+.sr-empty {
+  font-size: 13px;
+  color: #9b9b9b;
+  margin: 0;
+}
+
+.due-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.due-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+}
+
+.due-pill {
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.due-mastery {
+  font-size: 13px;
+  font-weight: 600;
+  color: #37352f;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-cell {
+  background: #f7f7f5;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  padding: 6px;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calendar-today {
+  border-color: #5c6bc0;
+  background: #f0f0ff;
+}
+
+.calendar-has-items {
+  background: #fff;
+}
+
+.calendar-date {
+  font-size: 10px;
+  font-weight: 600;
+  color: #9b9b9b;
+}
+
+.calendar-today .calendar-date {
+  color: #5c6bc0;
+}
+
+.calendar-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calendar-pill {
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

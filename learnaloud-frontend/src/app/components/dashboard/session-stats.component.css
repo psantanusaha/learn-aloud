@@ -1,0 +1,118 @@
+.empty-state {
+  text-align: center;
+  color: #9b9b9b;
+  font-size: 14px;
+  padding: 40px 20px;
+}
+
+.stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stats-card {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.stats-card:hover {
+  background: #fafafa;
+}
+
+.stats-card-expanded {
+  border-color: #5c6bc0;
+  box-shadow: 0 1px 4px rgba(92, 107, 192, 0.15);
+}
+
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.stats-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: #37352f;
+}
+
+.stats-file {
+  font-size: 12px;
+  color: #5c6bc0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.stats-row {
+  display: flex;
+  gap: 12px;
+}
+
+.stats-meta {
+  font-size: 12px;
+  color: #9b9b9b;
+}
+
+.stats-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.ratio-bar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ratio-label {
+  font-size: 11px;
+  color: #9b9b9b;
+  min-width: 44px;
+}
+
+.ratio-bar {
+  flex: 1;
+  height: 16px;
+}
+
+.ratio-counts {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #6b6b6b;
+  margin-bottom: 8px;
+}
+
+.topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.topic-pill {
+  background: #f0f0ee;
+  border: 1px solid #e8e8e8;
+  color: #37352f;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.stats-summary {
+  font-size: 13px;
+  color: #6b6b6b;
+  line-height: 1.5;
+  margin: 0;
+}
