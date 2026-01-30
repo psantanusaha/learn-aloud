@@ -12,8 +12,8 @@
           <div class="header-user">
             <span class="user-avatar">{{ userName.charAt(0).toUpperCase() }}</span>
             <span class="user-name">{{ userName }}</span>
-            <button class="dashboard-link" (click)="openDashboard()">Dashboard</button>
-            <button class="logout-btn" (click)="logout()">Log out</button>
+            <button class="dashboard-link" (click)="openDashboard()" aria-label="Open dashboard">Dashboard</button>
+            <button class="logout-btn" (click)="logout()" aria-label="Log out">Log out</button>
           </div>
         }
       </header>
@@ -27,24 +27,24 @@
             </div>
             
             <nav class="sidebar-nav">
-              <button class="nav-item" (click)="startNewSession()" [class.active]="!pdfUrl">
-                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+              <button class="nav-item" (click)="startNewSession()" [class.active]="!pdfUrl" aria-label="Start a new session">
+                <span class="nav-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
                 <span class="nav-label">New Session</span>
               </button>
-              <button class="nav-item" (click)="toggleSessionHistory()" [class.active]="showSessionHistory">
-                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+              <button class="nav-item" (click)="toggleSessionHistory()" [class.active]="showSessionHistory" aria-label="Toggle session history" [attr.aria-expanded]="showSessionHistory">
+                <span class="nav-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
                 <span class="nav-label">Session History</span>
               </button>
-              <button class="nav-item" (click)="openDashboard()">
-                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+              <button class="nav-item" (click)="openDashboard()" aria-label="Open learning dashboard">
+                <span class="nav-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
                 <span class="nav-label">Dashboard</span>
               </button>
-              <button class="nav-item" (click)="focusArxivSearch()">
-                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+              <button class="nav-item" (click)="focusArxivSearch()" aria-label="Search for papers on ArXiv">
+                <span class="nav-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
                 <span class="nav-label">Paper Search</span>
               </button>
-              <button class="nav-item" (click)="openActivityMonitor()">
-                <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+              <button class="nav-item" (click)="openActivityMonitor()" aria-label="Open activity monitor">
+                <span class="nav-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
                 <span class="nav-label">Activity Monitor</span>
               </button>
             </nav>
@@ -74,8 +74,8 @@
             }
 
             <div class="sidebar-footer">
-              <button class="footer-btn" (click)="openDashboard()">
-                <span class="footer-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+              <button class="footer-btn" (click)="openDashboard()" aria-label="Open settings">
+                <span class="footer-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
                 <span>Settings</span>
               </button>
               @if (userName) {
@@ -90,18 +90,18 @@
 
         <section class="pdf-section">
           @if (showModeSelector) {
-            <div class="mode-selector-overlay">
+            <div class="mode-selector-overlay" role="dialog" aria-label="Choose session mode" aria-modal="true">
               <div class="mode-selector">
-                <h2 class="mode-selector-title">Choose Session Mode</h2>
+                <h2 class="mode-selector-title" id="mode-selector-heading">Choose Session Mode</h2>
                 <p class="mode-selector-subtitle">How would you like to learn this paper?</p>
-                <div class="mode-selector-options">
-                  <button class="mode-option mode-tutor" (click)="selectTutorMode()">
-                    <span class="mode-option-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+                <div class="mode-selector-options" role="group" aria-labelledby="mode-selector-heading">
+                  <button class="mode-option mode-tutor" (click)="selectTutorMode()" aria-label="Voice Tutor — one-on-one tutoring session with an AI tutor" autofocus>
+                    <span class="mode-option-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
                     <span class="mode-option-label">Voice Tutor</span>
                     <span class="mode-option-desc">One-on-one tutoring session</span>
                   </button>
-                  <button class="mode-option mode-debate" (click)="selectDebateMode()">
-                    <span class="mode-option-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                  <button class="mode-option mode-debate" (click)="selectDebateMode()" aria-label="Author vs Reviewer — two AI agents debate the paper">
+                    <span class="mode-option-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                     <span class="mode-option-label">Author vs Reviewer</span>
                     <span class="mode-option-desc">Two agents debate the paper</span>
                   </button>
@@ -111,8 +111,8 @@
           }
 
           @if (agentActivityMessage) {
-            <div class="agent-activity-toast">
-              <span class="agent-activity-spinner"></span>
+            <div class="agent-activity-toast" role="status" aria-live="polite">
+              <span class="agent-activity-spinner" aria-hidden="true"></span>
               <span>{{ agentActivityMessage }}</span>
             </div>
           }
@@ -144,8 +144,8 @@
                   <div class="preview-header">
                     <h3>{{ getPreviewPaperName() }}</h3>
                     <div class="preview-actions">
-                      <button class="preview-make-active" (click)="switchToPreviewPaper()">Make Active</button>
-                      <button class="preview-close" (click)="closePreview()">&times;</button>
+                      <button class="preview-make-active" (click)="switchToPreviewPaper()" aria-label="Switch to this paper as the active document">Make Active</button>
+                      <button class="preview-close" (click)="closePreview()" aria-label="Close paper preview">&times;</button>
                     </div>
                   </div>
                   <app-pdf-viewer
@@ -169,13 +169,14 @@
                     <p class="welcome-back-meta">{{ lastSession.transcript.length }} messages exchanged</p>
                   </div>
                   <p class="welcome-back-hint">Upload the same PDF to continue where you left off, or choose a new one.</p>
-                  <label class="upload-btn" for="pdfInput">Upload PDF</label>
+                  <label class="upload-btn" for="pdfInput" role="button" tabindex="0" aria-label="Upload a PDF file">Upload PDF</label>
                   <input
                     id="pdfInput"
                     type="file"
                     accept="application/pdf"
                     (change)="onFileSelected($event)"
                     hidden
+                    aria-label="Choose PDF file to upload"
                   />
 
                   @if (sessionHistory.length > 1) {
@@ -213,13 +214,14 @@
                 <div class="upload-prompt">
                   <p class="upload-icon">&#128196;</p>
                   <p>Upload a PDF to get started</p>
-                  <label class="upload-btn" for="pdfInput">Choose PDF File</label>
+                  <label class="upload-btn" for="pdfInput" role="button" tabindex="0" aria-label="Choose a PDF file to upload">Choose PDF File</label>
                   <input
                     id="pdfInput"
                     type="file"
                     accept="application/pdf"
                     (change)="onFileSelected($event)"
                     hidden
+                    aria-label="Choose PDF file to upload"
                   />
                 </div>
               }
@@ -242,43 +244,45 @@
                     <button
                       class="voice-btn voice-start"
                       (click)="startVoiceSession()"
+                      aria-label="Start voice session with AI tutor"
                     >
                       Start Voice Session
                     </button>
                   }
 
                   @if (isVoiceConnecting) {
-                    <button class="voice-btn voice-start" disabled>
+                    <button class="voice-btn voice-start" disabled aria-label="Connecting to voice session" aria-busy="true">
                       Connecting...
                     </button>
                   }
 
                   @if (isVoiceConnected) {
-                    <div class="voice-active" [class.voice-paused]="isPaused">
-                      <span class="voice-indicator"></span>
+                    <div class="voice-active" [class.voice-paused]="isPaused" role="status" aria-live="polite">
+                      <span class="voice-indicator" aria-hidden="true"></span>
                       <span>{{ isPaused ? 'Session Paused' : (isDebateMode ? 'Debate Active' : 'Voice Active') }}</span>
                     </div>
                     @if (isDebateMode) {
                       @if (debateActiveSpeaker) {
-                        <div class="debate-speaker-indicator" [class.debate-speaker-author]="debateActiveSpeaker === 'author'" [class.debate-speaker-reviewer]="debateActiveSpeaker === 'reviewer'">
-                          <span class="debate-speaker-dot"></span>
+                        <div class="debate-speaker-indicator" [class.debate-speaker-author]="debateActiveSpeaker === 'author'" [class.debate-speaker-reviewer]="debateActiveSpeaker === 'reviewer'" role="status" aria-live="polite">
+                          <span class="debate-speaker-dot" aria-hidden="true"></span>
                           <span>{{ debateActiveSpeaker === 'author' ? 'Author speaking' : 'Reviewer speaking' }}</span>
                         </div>
                       }
-                      <div class="debate-turn-controls">
-                        <button class="debate-btn debate-btn-reviewer" (click)="askReviewer()">
+                      <div class="debate-turn-controls" role="group" aria-label="Debate turn controls">
+                        <button class="debate-btn debate-btn-reviewer" (click)="askReviewer()" aria-label="Ask the reviewer to critique the author's points">
                           Ask Reviewer
                         </button>
-                        <button class="debate-btn debate-btn-author" (click)="askAuthor()">
+                        <button class="debate-btn debate-btn-author" (click)="askAuthor()" aria-label="Ask the author to respond to the reviewer's critique">
                           Ask Author
                         </button>
                       </div>
-                      <p class="debate-hint">Say "reviewer" or "author" to switch, or use the buttons</p>
+                      <p class="debate-hint" aria-label="You can also say reviewer or author to switch speakers">Say "reviewer" or "author" to switch, or use the buttons</p>
                     }
-                    <div class="voice-action-row">
+                    <div class="voice-action-row" role="group" aria-label="Voice session controls">
                       <button
                         class="voice-btn voice-pause"
                         (click)="togglePause()"
+                        [attr.aria-label]="isPaused ? 'Resume voice session' : 'Pause voice session'"
                       >
                         {{ isPaused ? 'Resume' : 'Pause' }}
                       </button>
@@ -286,23 +290,25 @@
                         class="voice-btn voice-mic"
                         (click)="toggleMic()"
                         [disabled]="isPaused"
+                        [attr.aria-label]="isMicMuted ? 'Unmute your microphone' : 'Mute your microphone'"
                       >
                         {{ isMicMuted ? 'Unmute Mic' : 'Mute Mic' }}
                       </button>
                       <button
                         class="voice-btn voice-disconnect"
                         (click)="disconnectVoice()"
+                        aria-label="Disconnect voice session"
                       >
                         Disconnect
                       </button>
                     </div>
                     @if (sessionId) {
-                      <button class="handover-btn" (click)="showContinueOnPhone()">Continue on Phone</button>
+                      <button class="handover-btn" (click)="showContinueOnPhone()" aria-label="Continue this session on your phone via QR code">Continue on Phone</button>
                     }
                   }
 
                   @if (voiceError) {
-                    <p class="voice-error">{{ voiceError }}</p>
+                    <p class="voice-error" role="alert">{{ voiceError }}</p>
                   }
                 </div>
 
@@ -311,26 +317,28 @@
                 <button
                   class="monitor-btn"
                   (click)="openActivityMonitor()"
+                  aria-label="Open activity monitor in new window"
                 >
                   Activity Monitor
                 </button>
-                <label class="upload-btn reupload" for="pdfInputAlt">Upload Different PDF</label>
+                <label class="upload-btn reupload" for="pdfInputAlt" role="button" tabindex="0" aria-label="Upload a different PDF file">Upload Different PDF</label>
                 <input
                   id="pdfInputAlt"
                   type="file"
                   accept="application/pdf"
                   (change)="onFileSelected($event)"
                   hidden
+                  aria-label="Choose a different PDF file to upload"
                 />
               }
 
               @if (statusMessage) {
-                <p class="status">{{ statusMessage }}</p>
+                <p class="status" role="status" aria-live="polite">{{ statusMessage }}</p>
               }
 
               @if (mcpSearching) {
-                <div class="mcp-search-indicator">
-                  <span class="mcp-search-spinner"></span>
+                <div class="mcp-search-indicator" role="status" aria-live="polite">
+                  <span class="mcp-search-spinner" aria-hidden="true"></span>
                   <span>Searching ArXiv for "{{ mcpSearchQuery }}"...</span>
                 </div>
               }
@@ -340,9 +348,9 @@
               <!-- PDF References -->
               @if (pdfReferences.length > 0) {
                 <div class="references-panel">
-                  <div class="references-header" (click)="toggleReferences()">
+                  <div class="references-header" (click)="toggleReferences()" role="button" tabindex="0" [attr.aria-expanded]="showReferences" aria-label="Toggle PDF references list">
                     <h3>PDF References ({{ pdfReferences.length }})</h3>
-                    <span class="references-toggle">{{ showReferences ? '▾' : '▸' }}</span>
+                    <span class="references-toggle" aria-hidden="true">{{ showReferences ? '▾' : '▸' }}</span>
                   </div>
                   @if (showReferences) {
                     <div class="references-list">
@@ -393,8 +401,9 @@
                     placeholder="Search ArXiv..."
                     [(ngModel)]="arxivQuery"
                     (keyup.enter)="triggerArxivSearch()"
+                    aria-label="Search ArXiv for academic papers"
                   />
-                  <button class="agent-tool-btn" (click)="triggerArxivSearch()" [disabled]="isAgentLoading">
+                  <button class="agent-tool-btn" (click)="triggerArxivSearch()" [disabled]="isAgentLoading" aria-label="Submit ArXiv search">
                     Search
                   </button>
                 </div>
@@ -403,10 +412,10 @@
 
             <!-- Transcript (collapsible) -->
             @if (isVoiceConnected && transcriptEntries.length > 0) {
-              <div class="references-panel transcript-panel">
-                <div class="references-header" (click)="toggleTranscript()">
+              <div class="references-panel transcript-panel" role="region" aria-label="Voice transcript">
+                <div class="references-header" (click)="toggleTranscript()" role="button" tabindex="0" [attr.aria-expanded]="showTranscript" aria-label="Toggle voice transcript">
                   <h3>Transcript ({{ transcriptEntries.length }})</h3>
-                  <span class="references-toggle">{{ showTranscript ? '&#9662;' : '&#9656;' }}</span>
+                  <span class="references-toggle" aria-hidden="true">{{ showTranscript ? '&#9662;' : '&#9656;' }}</span>
                 </div>
                 @if (showTranscript) {
                   <div class="transcript-messages">
@@ -446,33 +455,33 @@
 
         <!-- Mobile floating toolbar -->
         @if (isMobileDevice && pdfUrl) {
-          <div class="mobile-toolbar">
+          <div class="mobile-toolbar" role="toolbar" aria-label="Voice session controls">
             @if (isVoiceConnected) {
-              <div class="mobile-status">
-                <span class="voice-indicator"></span>
+              <div class="mobile-status" role="status" aria-live="polite">
+                <span class="voice-indicator" aria-hidden="true"></span>
                 <span class="mobile-status-text">{{ isPaused ? 'Paused' : 'Live' }}</span>
               </div>
-              <button class="mobile-btn" (click)="toggleMic()" [disabled]="isPaused" [class.mobile-btn-active]="isMicMuted">
+              <button class="mobile-btn" (click)="toggleMic()" [disabled]="isPaused" [class.mobile-btn-active]="isMicMuted" [attr.aria-label]="isMicMuted ? 'Unmute your microphone' : 'Mute your microphone'">
                 {{ isMicMuted ? 'Unmute' : 'Mute' }}
               </button>
-              <button class="mobile-btn" (click)="togglePause()">
+              <button class="mobile-btn" (click)="togglePause()" [attr.aria-label]="isPaused ? 'Resume voice session' : 'Pause voice session'">
                 {{ isPaused ? 'Resume' : 'Pause' }}
               </button>
               @if (isDebateMode) {
-                <button class="mobile-btn mobile-btn-reviewer" (click)="askReviewer()">Reviewer</button>
-                <button class="mobile-btn mobile-btn-author" (click)="askAuthor()">Author</button>
+                <button class="mobile-btn mobile-btn-reviewer" (click)="askReviewer()" aria-label="Ask the reviewer to critique">Reviewer</button>
+                <button class="mobile-btn mobile-btn-author" (click)="askAuthor()" aria-label="Ask the author to respond">Author</button>
               }
-              <button class="mobile-btn mobile-btn-transcript" (click)="toggleMobileTranscript()">
+              <button class="mobile-btn mobile-btn-transcript" (click)="toggleMobileTranscript()" aria-label="Open transcript chat">
                 Chat
                 @if (transcriptEntries.length > 0) {
-                  <span class="mobile-badge">{{ transcriptEntries.length }}</span>
+                  <span class="mobile-badge" aria-label="{{ transcriptEntries.length }} messages">{{ transcriptEntries.length }}</span>
                 }
               </button>
-              <button class="mobile-btn mobile-btn-danger" (click)="disconnectVoice()">
+              <button class="mobile-btn mobile-btn-danger" (click)="disconnectVoice()" aria-label="End voice session">
                 End
               </button>
             } @else {
-              <button class="mobile-btn mobile-btn-start" (click)="startVoiceSession()" [disabled]="isVoiceConnecting">
+              <button class="mobile-btn mobile-btn-start" (click)="startVoiceSession()" [disabled]="isVoiceConnecting" aria-label="Start voice tutor session">
                 {{ isVoiceConnecting ? 'Connecting...' : 'Start Tutor' }}
               </button>
             }
@@ -488,7 +497,7 @@
               <div class="mobile-transcript-panel" (click)="$event.stopPropagation()">
                 <div class="mobile-transcript-header">
                   <h3>Transcript</h3>
-                  <button class="mobile-transcript-close" (click)="toggleMobileTranscript()">&times;</button>
+                  <button class="mobile-transcript-close" (click)="toggleMobileTranscript()" aria-label="Close transcript">&times;</button>
                 </div>
                 <div class="mobile-transcript-messages">
                   @for (entry of transcriptEntries; track entry.id) {
@@ -517,17 +526,17 @@
   <router-outlet></router-outlet>
 
   @if (showQrModal) {
-    <div class="qr-modal-overlay" (click)="closeQrModal()">
+    <div class="qr-modal-overlay" (click)="closeQrModal()" role="dialog" aria-label="Continue on phone" aria-modal="true">
       <div class="qr-modal" (click)="$event.stopPropagation()">
         <h2>Continue on Phone</h2>
         <p class="qr-subtitle">Scan this QR code to continue the session on your phone</p>
-        <img class="qr-code-image" [src]="qrCodeDataUrl" alt="QR Code" width="256" height="256" />
+        <img class="qr-code-image" [src]="qrCodeDataUrl" alt="QR code to continue session on phone" width="256" height="256" />
         <div class="qr-url-container">
-          <input class="qr-url-input" type="text" [value]="handoverUrl" readonly />
-          <button class="qr-copy-btn" (click)="copyUrlToClipboard()">Copy</button>
+          <input class="qr-url-input" type="text" [value]="handoverUrl" readonly aria-label="Session handover URL" />
+          <button class="qr-copy-btn" (click)="copyUrlToClipboard()" aria-label="Copy handover URL to clipboard">Copy</button>
         </div>
         <p class="qr-note">Both devices must be on the same WiFi network</p>
-        <button class="qr-close-btn" (click)="closeQrModal()">Close</button>
+        <button class="qr-close-btn" (click)="closeQrModal()" aria-label="Close QR code dialog">Close</button>
       </div>
     </div>
   }
