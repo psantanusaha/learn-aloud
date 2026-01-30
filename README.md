@@ -110,6 +110,34 @@ The ArXiv MCP server will be running on `http://localhost:8050`.
 
 Navigate to [http://localhost:4200](http://localhost:4200) in your browser.
 
+## Contributing
+
+The `main` branch is protected. All changes require a pull request with at least one approval.
+
+### Workflow
+
+1.  **Create a feature branch:**
+
+    ```bash
+    git checkout -b feat/my-feature
+    ```
+
+2.  **Make your changes and commit:**
+
+    ```bash
+    git add <files>
+    git commit -m "Description of changes"
+    ```
+
+3.  **Push and create a PR:**
+
+    ```bash
+    git push -u origin feat/my-feature
+    gh pr create --title "Add feature X"
+    ```
+
+4.  **Wait for review** — the PR must be approved before it can be merged into `main`.
+
 ## Development
 
 ### Testing
