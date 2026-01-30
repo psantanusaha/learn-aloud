@@ -82,6 +82,14 @@ export class App implements OnInit, OnDestroy {
   previewPaperIndex: number | null = null;
   showPreviewPanel = false;
 
+  // -- Debate mode --
+  isDebateMode = false;
+  showModeSelector = false;
+  debateReviewerStarted = false;
+  private debateRelayTimeout: any = null;
+  private debateRelayBuffer: { role: 'author' | 'reviewer'; text: string }[] = [];
+  private debateRelayedIds = new Set<string>();
+
   // -- Split resize --
   previewPanelWidth = 33;
   private isSplitDragging = false;
@@ -108,6 +116,7 @@ export class App implements OnInit, OnDestroy {
   get isMicMuted() { return !this.voice.isMicEnabled; }
   get micError() { return this.voice.micError; }
   get isPaused() { return this.voice.isPaused; }
+  get debateActiveSpeaker() { return this.voice.activeSpeaker; }
   get isActivityMonitorRoute() { return this.router.url === '/activity-monitor'; }
   get isDashboardRoute() { return this.router.url === '/dashboard'; }
 
@@ -163,6 +172,7 @@ export class App implements OnInit, OnDestroy {
     this.voice.setTranscriptHandler((entries: TranscriptEntry[]) => {
       const prev = this.transcriptEntries;
       this.transcriptEntries = [...entries];
+
       // Detect new agent entries
       if (entries.length > prev.length) {
         const latest = entries[entries.length - 1];
@@ -202,13 +212,54 @@ export class App implements OnInit, OnDestroy {
           }
         }
       }
+      // Debate mode: detect student voice keywords to invoke agents
+      if (this.isDebateMode) {
+        for (const entry of entries) {
+          if (entry.sender === 'you' && entry.isFinal) {
+            const prevEntry = prev.find(e => e.id === entry.id);
+            if (!prevEntry || !prevEntry.isFinal) {
+              const lower = entry.text.toLowerCase();
+              const reviewerTriggers = [
+                'reviewer', 'ask reviewer', 'ask the reviewer',
+                'what do you think reviewer', 'reviewer what',
+                'critique', 'review this', 'your critique',
+                'peer review', 'what does the reviewer think',
+                'reviewer opinion', 'reviewer thoughts',
+                'let the reviewer', 'bring in the reviewer',
+                'over to reviewer', 'pass to reviewer',
+              ];
+              const authorTriggers = [
+                'author', 'ask author', 'ask the author',
+                'what do you think author', 'author what',
+                'defend', 'respond to that', 'your response',
+                'what does the author think', 'author respond',
+                'author opinion', 'author thoughts',
+                'let the author', 'bring in the author',
+                'over to author', 'pass to author',
+                'what do you say', 'how do you respond',
+              ];
+              if (reviewerTriggers.some(t => lower.includes(t))) {
+                console.log('[App] Student voice trigger: asking reviewer');
+                this.askReviewer();
+              } else if (authorTriggers.some(t => lower.includes(t))) {
+                console.log('[App] Student voice trigger: asking author');
+                this.askAuthor();
+              }
+            }
+          }
+        }
+      }
+
       // Post new final entries to the activity monitor
       for (let i = prev.length; i < entries.length; i++) {
         const e = entries[i];
         if (e.isFinal) {
+          const senderLabel = this.isDebateMode && e.role
+            ? (e.sender === 'you' ? 'You' : e.role === 'author' ? 'Author' : 'Reviewer')
+            : (e.sender === 'you' ? 'You' : 'Tutor');
           this.activity.post({
             category: 'transcript',
-            title: `${e.sender === 'you' ? 'You' : 'Tutor'}: ${e.text}`,
+            title: `${senderLabel}: ${e.text}`,
           });
         }
       }
@@ -271,10 +322,8 @@ export class App implements OnInit, OnDestroy {
         this.loadReferences();
         this.cdr.detectChanges();
 
-        // Automatically start voice session to have tutor explain the PDF
-        setTimeout(() => {
-          this.startVoiceSession();
-        }, 500);
+        // Show mode selector instead of auto-starting
+        this.showModeSelection();
       },
       error: (err) => {
         console.error('Upload failed:', err);
@@ -329,10 +378,8 @@ export class App implements OnInit, OnDestroy {
             this.loadReferences();
             this.cdr.detectChanges();
             
-            // Automatically start voice session to have tutor explain the PDF
-            setTimeout(() => {
-              this.startVoiceSession();
-            }, 500);
+            // Show mode selector instead of auto-starting
+            this.showModeSelection();
           },
           error: (err) => {
             console.error('Sample PDF upload failed:', err);
@@ -397,6 +444,182 @@ export class App implements OnInit, OnDestroy {
     });
   }
 
+  showModeSelection(): void {
+    this.showModeSelector = true;
+    this.clearAgentActivity();
+    this.cdr.detectChanges();
+  }
+
+  selectTutorMode(): void {
+    this.showModeSelector = false;
+    this.isDebateMode = false;
+    this.cdr.detectChanges();
+    setTimeout(() => this.startVoiceSession(), 200);
+  }
+
+  selectDebateMode(): void {
+    this.showModeSelector = false;
+    this.isDebateMode = true;
+    this.debateReviewerStarted = false;
+    this.cdr.detectChanges();
+    setTimeout(() => this.startDebateSession(), 200);
+  }
+
+  async startDebateSession(): Promise<void> {
+    if (!this.sessionId) return;
+    this.voiceError = '';
+    this.isDebateMode = true;
+    this.statusMessage = 'Connecting debate agents...';
+    this.showAgentActivity('Setting up Author vs Reviewer...');
+    this.cdr.detectChanges();
+
+    this.api.getDebateTokens('student').subscribe({
+      next: async (res: any) => {
+        try {
+          const authorData = res.author;
+          const reviewerData = res.reviewer;
+          await this.voice.connectDebate(
+            authorData.livekit_url,
+            authorData.token,
+            reviewerData.livekit_url,
+            reviewerData.token,
+          );
+          this.statusMessage = 'Debate session active — Author vs Reviewer';
+          this.voiceError = '';
+          this.clearAgentActivity();
+          this.activity.post({ category: 'state', title: 'Debate session started' });
+          this.broadcastState();
+          this.startStateSyncing();
+          this.cdr.detectChanges();
+
+          // Send PDF context to author first — author speaks first
+          // Reviewer gets context after a delay, and stays silent until [AUTHOR] relay
+          this.sendDebatePdfContext();
+        } catch (e: any) {
+          if (this.voice.isConnected) {
+            this.statusMessage = 'Debate session active — Author vs Reviewer';
+            this.voiceError = '';
+            this.clearAgentActivity();
+            this.sendDebatePdfContext();
+          } else {
+            this.voiceError = `Failed to connect debate: ${e.message || e}`;
+            this.clearAgentActivity();
+          }
+          this.cdr.detectChanges();
+        }
+      },
+      error: (err) => {
+        const msg = err.error?.error || err.message || 'Unknown error';
+        this.voiceError = `Debate token error: ${msg}`;
+        this.clearAgentActivity();
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private getRecentAgentText(role: 'author' | 'reviewer'): string {
+    // Collect recent final transcript entries from the given role
+    const entries = this.transcriptEntries
+      .filter(e => e.sender === 'agent' && e.isFinal && e.role === role)
+      .slice(-5) // last 5 segments from this role
+      .map(e => e.text);
+    return entries.join(' ');
+  }
+
+  async askReviewer(): Promise<void> {
+    if (!this.isDebateMode) return;
+
+    const authorText = this.getRecentAgentText('author');
+    if (!authorText) {
+      this.statusMessage = 'Wait for the author to speak first';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // Mute author audio + cut mic in author room so author stops hearing student
+    this.voice.muteAgentAudio('author');
+    await this.voice.muteLocalMicInRoom('author');
+
+    if (!this.debateReviewerStarted) {
+      this.debateReviewerStarted = true;
+      this.showAgentActivity('Connecting reviewer...');
+      this.cdr.detectChanges();
+
+      await this.voice.connectReviewerRoom();
+      this.voice.unmuteAgentAudio('reviewer');
+
+      // Send PDF context to reviewer
+      const activeSessionId = this.getActiveSessionId();
+      if (activeSessionId) {
+        this.api.getPaperContext(activeSessionId).subscribe({
+          next: async (res: any) => {
+            if (res.context) {
+              await this.voice.sendContextToRole(res.context, 'reviewer');
+              // After context settles, relay author's points
+              setTimeout(async () => {
+                await this.voice.relayToAgent('reviewer', `[AUTHOR] ${authorText}`);
+                this.clearAgentActivity();
+                this.statusMessage = 'Reviewer is responding...';
+                this.cdr.detectChanges();
+              }, 2000);
+            }
+          },
+          error: (err) => {
+            console.error('Failed to send context to reviewer:', err);
+            this.clearAgentActivity();
+          },
+        });
+      }
+    } else {
+      this.voice.unmuteAgentAudio('reviewer');
+      await this.voice.unmuteLocalMicInRoom('reviewer');
+      await this.voice.relayToAgent('reviewer', `[AUTHOR] ${authorText}`);
+      this.statusMessage = 'Reviewer is responding...';
+      this.cdr.detectChanges();
+    }
+  }
+
+  async askAuthor(): Promise<void> {
+    if (!this.isDebateMode) return;
+
+    const reviewerText = this.getRecentAgentText('reviewer');
+    if (!reviewerText) {
+      this.statusMessage = 'Wait for the reviewer to speak first';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // Mute reviewer audio + cut mic in reviewer room so reviewer stops hearing student
+    this.voice.muteAgentAudio('reviewer');
+    await this.voice.muteLocalMicInRoom('reviewer');
+
+    // Unmute author audio + restore mic in author room
+    this.voice.unmuteAgentAudio('author');
+    await this.voice.unmuteLocalMicInRoom('author');
+
+    await this.voice.relayToAgent('author', `[REVIEWER] ${reviewerText}`);
+    this.statusMessage = 'Author is responding...';
+    this.cdr.detectChanges();
+  }
+
+  private sendDebatePdfContext(): void {
+    const activeSessionId = this.getActiveSessionId();
+    if (!activeSessionId) return;
+
+    // Only send to author — reviewer isn't connected yet
+    this.api.getPaperContext(activeSessionId).subscribe({
+      next: async (res: any) => {
+        if (res.context) {
+          await this.voice.sendContextToRole(res.context, 'author');
+          console.log('[App] Sent PDF context to author only');
+        }
+      },
+      error: (err) => {
+        console.error('Failed to fetch paper context for debate:', err);
+      },
+    });
+  }
+
   private sendPdfContext(): void {
     const activeSessionId = this.getActiveSessionId();
     if (!activeSessionId) return;
@@ -438,6 +661,15 @@ export class App implements OnInit, OnDestroy {
     }
 
     await this.voice.disconnect();
+    // Clean up debate state
+    this.isDebateMode = false;
+    this.debateReviewerStarted = false;
+    this.debateRelayBuffer = [];
+    this.debateRelayedIds.clear();
+    if (this.debateRelayTimeout) {
+      clearTimeout(this.debateRelayTimeout);
+      this.debateRelayTimeout = null;
+    }
     this.statusMessage = 'Voice session ended';
     this.activity.post({ category: 'state', title: 'Voice session ended' });
     this.broadcastState();
@@ -810,10 +1042,17 @@ export class App implements OnInit, OnDestroy {
   }
 
   private handleClientAction(action: any): void {
+    // In debate mode, force author=blue, reviewer=pink for highlights
+    const debateRole: string | undefined = action._debateRole;
+
     if (action.type === 'highlight_text') {
+      let color = action.payload.color || 'yellow';
+      if (this.isDebateMode && debateRole) {
+        color = debateRole === 'author' ? 'blue' : 'pink';
+      }
       const payload: HighlightTextPayload = {
         text: action.payload.text,
-        color: action.payload.color || 'yellow',
+        color,
         page: action.payload.page || 1,
         sessionId: action.payload.session_id || this.getActiveSessionId(),
       };
@@ -824,13 +1063,17 @@ export class App implements OnInit, OnDestroy {
         detail: `Page ${payload.page}, color: ${payload.color}`,
       });
     } else if (action.type === 'highlight_region') {
+      let regionColor = action.payload.color || 'rgba(255, 255, 0, 0.3)';
+      if (this.isDebateMode && debateRole) {
+        regionColor = debateRole === 'author' ? 'rgba(33, 150, 243, 0.3)' : 'rgba(233, 30, 99, 0.3)';
+      }
       const payload: HighlightRegionPayload = {
         x: action.payload.x,
         y: action.payload.y,
         w: action.payload.w,
         h: action.payload.h,
         page: action.payload.page || 1,
-        color: action.payload.color || 'rgba(255, 255, 0, 0.3)',
+        color: regionColor,
         sessionId: action.payload.session_id || this.getActiveSessionId(),
       };
       this.actionService.dispatch({ type: 'HIGHLIGHT_REGION', payload });

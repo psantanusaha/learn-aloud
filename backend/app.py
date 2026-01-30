@@ -24,6 +24,8 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 pdf_processor = PDFProcessor()
 vocal_bridge = VocalBridgeClient(os.getenv("VOCAL_BRIDGE_API_KEY", ""))
+vocal_bridge_author = VocalBridgeClient(os.getenv("VOCAL_BRIDGE_AUTHOR_API_KEY", ""))
+vocal_bridge_reviewer = VocalBridgeClient(os.getenv("VOCAL_BRIDGE_REVIEWER_API_KEY", ""))
 librarian = Librarian(UPLOAD_DIR, pdf_processor)
 navigator = Navigator()
 
@@ -292,6 +294,38 @@ def voice_token():
         return jsonify(result), 502
 
     return jsonify(result)
+
+
+@app.route("/api/debate-tokens", methods=["POST"])
+def debate_tokens():
+    if not os.getenv("VOCAL_BRIDGE_AUTHOR_API_KEY"):
+        return jsonify({"error": "Author agent not configured (no API key)"}), 503
+    if not os.getenv("VOCAL_BRIDGE_REVIEWER_API_KEY"):
+        return jsonify({"error": "Reviewer agent not configured (no API key)"}), 503
+
+    data = request.get_json() or {}
+    participant = data.get("participant", "student")
+
+    try:
+        author_result = vocal_bridge_author.get_token(participant + "-author")
+    except Exception as e:
+        return jsonify({"error": f"Author token error: {e}"}), 502
+
+    if "error" in author_result:
+        return jsonify({"error": f"Author token error: {author_result['error']}"}), 502
+
+    try:
+        reviewer_result = vocal_bridge_reviewer.get_token(participant + "-reviewer")
+    except Exception as e:
+        return jsonify({"error": f"Reviewer token error: {e}"}), 502
+
+    if "error" in reviewer_result:
+        return jsonify({"error": f"Reviewer token error: {reviewer_result['error']}"}), 502
+
+    return jsonify({
+        "author": author_result,
+        "reviewer": reviewer_result,
+    })
 
 
 # ---------------------------------------------------------------------------

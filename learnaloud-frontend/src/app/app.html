@@ -89,6 +89,27 @@
         </aside>
 
         <section class="pdf-section">
+          @if (showModeSelector) {
+            <div class="mode-selector-overlay">
+              <div class="mode-selector">
+                <h2 class="mode-selector-title">Choose Session Mode</h2>
+                <p class="mode-selector-subtitle">How would you like to learn this paper?</p>
+                <div class="mode-selector-options">
+                  <button class="mode-option mode-tutor" (click)="selectTutorMode()">
+                    <span class="mode-option-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+                    <span class="mode-option-label">Voice Tutor</span>
+                    <span class="mode-option-desc">One-on-one tutoring session</span>
+                  </button>
+                  <button class="mode-option mode-debate" (click)="selectDebateMode()">
+                    <span class="mode-option-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                    <span class="mode-option-label">Author vs Reviewer</span>
+                    <span class="mode-option-desc">Two agents debate the paper</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
           @if (agentActivityMessage) {
             <div class="agent-activity-toast">
               <span class="agent-activity-spinner"></span>
@@ -235,8 +256,25 @@
                   @if (isVoiceConnected) {
                     <div class="voice-active" [class.voice-paused]="isPaused">
                       <span class="voice-indicator"></span>
-                      <span>{{ isPaused ? 'Session Paused' : 'Voice Active' }}</span>
+                      <span>{{ isPaused ? 'Session Paused' : (isDebateMode ? 'Debate Active' : 'Voice Active') }}</span>
                     </div>
+                    @if (isDebateMode) {
+                      @if (debateActiveSpeaker) {
+                        <div class="debate-speaker-indicator" [class.debate-speaker-author]="debateActiveSpeaker === 'author'" [class.debate-speaker-reviewer]="debateActiveSpeaker === 'reviewer'">
+                          <span class="debate-speaker-dot"></span>
+                          <span>{{ debateActiveSpeaker === 'author' ? 'Author speaking' : 'Reviewer speaking' }}</span>
+                        </div>
+                      }
+                      <div class="debate-turn-controls">
+                        <button class="debate-btn debate-btn-reviewer" (click)="askReviewer()">
+                          Ask Reviewer
+                        </button>
+                        <button class="debate-btn debate-btn-author" (click)="askAuthor()">
+                          Ask Author
+                        </button>
+                      </div>
+                      <p class="debate-hint">Say "reviewer" or "author" to switch, or use the buttons</p>
+                    }
                     <div class="voice-action-row">
                       <button
                         class="voice-btn voice-pause"
@@ -373,8 +411,17 @@
                 @if (showTranscript) {
                   <div class="transcript-messages">
                     @for (entry of transcriptEntries; track entry.id) {
-                      <div class="transcript-entry" [class.transcript-you]="entry.sender === 'you'" [class.transcript-agent]="entry.sender === 'agent'" [class.transcript-partial]="!entry.isFinal">
-                        <span class="transcript-sender">{{ entry.sender === 'you' ? 'You' : 'Tutor' }}:</span>
+                      <div class="transcript-entry"
+                        [class.transcript-you]="entry.sender === 'you'"
+                        [class.transcript-agent]="entry.sender === 'agent' && !entry.role"
+                        [class.transcript-author]="entry.role === 'author' && entry.sender === 'agent'"
+                        [class.transcript-reviewer]="entry.role === 'reviewer' && entry.sender === 'agent'"
+                        [class.transcript-partial]="!entry.isFinal">
+                        <span class="transcript-sender"
+                          [class.sender-author]="entry.role === 'author'"
+                          [class.sender-reviewer]="entry.role === 'reviewer'">
+                          {{ entry.sender === 'you' ? 'You' : (entry.role === 'author' ? 'Author' : (entry.role === 'reviewer' ? 'Reviewer' : 'Tutor')) }}:
+                        </span>
                         {{ entry.text }}
                       </div>
                     }
@@ -411,6 +458,10 @@
               <button class="mobile-btn" (click)="togglePause()">
                 {{ isPaused ? 'Resume' : 'Pause' }}
               </button>
+              @if (isDebateMode) {
+                <button class="mobile-btn mobile-btn-reviewer" (click)="askReviewer()">Reviewer</button>
+                <button class="mobile-btn mobile-btn-author" (click)="askAuthor()">Author</button>
+              }
               <button class="mobile-btn mobile-btn-transcript" (click)="toggleMobileTranscript()">
                 Chat
                 @if (transcriptEntries.length > 0) {
@@ -441,8 +492,17 @@
                 </div>
                 <div class="mobile-transcript-messages">
                   @for (entry of transcriptEntries; track entry.id) {
-                    <div class="transcript-entry" [class.transcript-you]="entry.sender === 'you'" [class.transcript-agent]="entry.sender === 'agent'" [class.transcript-partial]="!entry.isFinal">
-                      <span class="transcript-sender">{{ entry.sender === 'you' ? 'You' : 'Tutor' }}:</span>
+                    <div class="transcript-entry"
+                      [class.transcript-you]="entry.sender === 'you'"
+                      [class.transcript-agent]="entry.sender === 'agent' && !entry.role"
+                      [class.transcript-author]="entry.role === 'author' && entry.sender === 'agent'"
+                      [class.transcript-reviewer]="entry.role === 'reviewer' && entry.sender === 'agent'"
+                      [class.transcript-partial]="!entry.isFinal">
+                      <span class="transcript-sender"
+                        [class.sender-author]="entry.role === 'author'"
+                        [class.sender-reviewer]="entry.role === 'reviewer'">
+                        {{ entry.sender === 'you' ? 'You' : (entry.role === 'author' ? 'Author' : (entry.role === 'reviewer' ? 'Reviewer' : 'Tutor')) }}:
+                      </span>
                       {{ entry.text }}
                     </div>
                   }

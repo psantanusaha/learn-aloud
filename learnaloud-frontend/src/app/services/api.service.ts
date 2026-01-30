@@ -38,6 +38,10 @@ export class ApiService {
     return this.http.post(`${this.baseUrl}/voice-token`, { participant });
   }
 
+  getDebateTokens(participant: string = 'student'): Observable<any> {
+    return this.http.post(`${this.baseUrl}/debate-tokens`, { participant });
+  }
+
   getPdfUrl(sessionId: string): string {
     return `${this.baseUrl}/pdf/${sessionId}`;
   }
