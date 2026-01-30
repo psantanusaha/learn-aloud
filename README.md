@@ -15,7 +15,7 @@ Before you begin, ensure you have the following installed:
 1.  **Clone the repository:**
 
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/psantanusaha/learn-aloud.git
     cd learn-aloud
     ```
 
@@ -27,13 +27,20 @@ Before you begin, ensure you have the following installed:
         VOCAL_BRIDGE_API_KEY=<your-vocal-bridge-api-key>
         ```
 
-    *   **ArXiv MCP:** Create a `.env` file in the `arxiv-mcp` directory and add any necessary environment variables (refer to `arxiv-mcp/.env.example`).
+    *   **ArXiv MCP:** Create a `.env` file in the `arxiv-mcp` directory:
+
+        ```
+        TRANSPORT=sse
+        HOST=0.0.0.0
+        PORT=8050
+        ```
 
 ## Easy Installation
 
 You can use the `setup.sh` script to install all the dependencies for the backend, frontend, and ArXiv MCP server.
 
 ```bash
+chmod +x setup.sh
 ./setup.sh
 ```
 
@@ -99,38 +106,9 @@ python src/server.py
 
 The ArXiv MCP server will be running on `http://localhost:8050`.
 
-## Deployment
+### Open the app
 
-This project can be deployed to a variety of platforms. Here are some recommendations for a quick and easy setup.
-
-### Frontend (Vercel)
-
-1.  **Sign up for Vercel:** Create an account at [vercel.com](https://vercel.com) and connect your GitHub account.
-2.  **Create a new project:** From the Vercel dashboard, click "New Project" and import your GitHub repository.
-3.  **Configure the project:** Vercel will automatically detect that you have an Angular application and configure the build settings. You will need to set the "Root Directory" to `learnaloud-frontend`.
-4.  **Deploy:** Click "Deploy" and Vercel will build and deploy your frontend.
-
-### Backend and ArXiv MCP Server (Heroku)
-
-You will need to create two separate applications on Heroku, one for the backend and one for the ArXiv MCP server.
-
-**For each application:**
-
-1.  **Sign up for Heroku:** Create an account at [heroku.com](https://www.heroku.com/).
-2.  **Create a new app:** From the Heroku dashboard, click "New" and then "Create new app".
-3.  **Connect to GitHub:** In the "Deploy" tab of your new Heroku app, connect your GitHub account and select your repository.
-4.  **Configure the app:**
-    *   **Backend:** In the "Settings" tab, set the "Buildpack" to `heroku/python`.
-    *   **ArXiv MCP Server:** In the "Settings" tab, set the "Buildpack" to `heroku/python`.
-    *   **For both apps:** You will need to set the `VOCAL_BRIDGE_API_KEY` and any other necessary environment variables in the "Config Vars" section of the "Settings" tab.
-5.  **Enable automatic deploys:** In the "Deploy" tab, you can enable automatic deploys from your `main` branch.
-
-**Important:** Since you are deploying two separate applications from the same repository, you will need to tell Heroku which directory to use for each application. You can do this by setting the `PROJECT_PATH` config var in the "Settings" tab.
-
-*   **For the backend app:** Set `PROJECT_PATH` to `backend`.
-*   **For the ArXiv MCP server app:** Set `PROJECT_PATH` to `arxiv-mcp`.
-
-This is a simplified guide. For more detailed instructions, please refer to the official documentation for [Vercel](https://vercel.com/docs) and [Heroku](https://devcenter.heroku.com/categories/deployment).
+Navigate to [http://localhost:4200](http://localhost:4200) in your browser.
 
 ## Development
 
