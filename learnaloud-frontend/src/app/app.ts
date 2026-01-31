@@ -95,7 +95,7 @@ export class App implements OnInit, OnDestroy {
   private currentDebateTurn: 'author' | 'reviewer' = 'author';
   private debateTurnTimeout: any = null;
   private debateTurnInterval: any = null;
-  private pauseBetweenTurns = 3000; // 3 second pause between turns for smooth, natural transitions and to prevent cutoffs
+  private pauseBetweenTurns = 1000; // 1 second pause between turns for natural conversation flow
 
   // -- Split resize --
   previewPanelWidth = 33;
@@ -578,17 +578,15 @@ export class App implements OnInit, OnDestroy {
     await this.voice.muteLocalMicInRoom('author');
     await this.voice.muteLocalMicInRoom('reviewer');
 
-    console.log('[Debate] Both agents muted, now sending context to author...');
+    console.log('[Debate] Both agents muted, now sending context and starting author...');
 
-    // Send PDF context to author now (when debate actually starts)
-    this.sendDebatePdfContext();
+    // Send PDF context to author and WAIT for it to complete
+    await this.sendDebatePdfContextAsync();
 
-    // Wait for context to be processed
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Add small delay to ensure context is fully received by agent
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    console.log('[Debate] Starting author turn...');
-
-    // Start with author speaking first
+    // Now start author turn
     await this.triggerAuthorTurn(true);
 
     // Reset starting flag now that initialization is complete
@@ -643,37 +641,37 @@ export class App implements OnInit, OnDestroy {
     console.log('[Debate] Triggering author turn...');
     this.currentDebateTurn = 'author';
 
-    // CRITICAL: Ensure BOTH agents are fully muted before any changes
-    this.voice.muteAgentAudio('author');
-    this.voice.muteAgentAudio('reviewer');
-    await Promise.all([
-      this.voice.muteLocalMicInRoom('author'),
-      this.voice.muteLocalMicInRoom('reviewer')
-    ]);
+    if (!isFirst) {
+      // For subsequent turns, ensure proper muting/unmuting
+      this.voice.muteAgentAudio('author');
+      this.voice.muteAgentAudio('reviewer');
+      await Promise.all([
+        this.voice.muteLocalMicInRoom('author'),
+        this.voice.muteLocalMicInRoom('reviewer')
+      ]);
 
-    console.log('[Debate] Both agents muted, waiting before enabling author...');
+      // Brief wait to ensure all muting is complete
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
 
-    // Wait to ensure all muting is complete
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Now unmute ONLY author
+    // Unmute ONLY author
     this.voice.unmuteAgentAudio('author');
     await this.voice.unmuteLocalMicInRoom('author');
 
-    console.log('[Debate] Author unmuted, waiting before sending message...');
-
-    // Wait before sending message to ensure audio is ready
-    await new Promise(resolve => setTimeout(resolve, 300));
+    if (!isFirst) {
+      // Brief wait before sending message (only for subsequent turns)
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
 
     if (isFirst) {
       // First turn: author speaks about the paper
-      const message = `You are the author of this paper. Present your key findings and arguments in support of the paper. Keep your response under 40 seconds. Be strong and confident in defending your work.`;
+      const message = `You are now presenting your paper. Introduce it and explain your key contributions, main findings, and why they matter. Begin speaking now.`;
       await this.voice.relayToAgent('author', message);
       this.statusMessage = 'Author presenting...';
     } else {
       // Subsequent turns: respond to reviewer
       const reviewerHistory = this.getDebateHistory('reviewer');
-      const message = `[REVIEWER CRITIQUE] ${reviewerHistory}\\n\\nAnswer the reviewer's questions and respond to their critique. Address their concerns directly with evidence from your paper. Keep your response under 40 seconds.`;
+      const message = `The reviewer said: "${reviewerHistory}"\n\nRespond now to their questions and address their concerns with evidence from your work.`;
       await this.voice.relayToAgent('author', message);
       this.statusMessage = 'Author responding...';
     }
@@ -737,22 +735,18 @@ export class App implements OnInit, OnDestroy {
       this.voice.muteLocalMicInRoom('reviewer')
     ]);
 
-    console.log('[Debate] Both agents muted, waiting before enabling reviewer...');
-
-    // Wait to ensure all muting is complete
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Brief wait to ensure all muting is complete
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     // Now unmute ONLY reviewer
     this.voice.unmuteAgentAudio('reviewer');
     await this.voice.unmuteLocalMicInRoom('reviewer');
 
-    console.log('[Debate] Reviewer unmuted, waiting before sending message...');
-
-    // Wait before sending message to ensure audio is ready
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Brief wait before sending message
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     const authorHistory = this.getDebateHistory('author');
-    const message = `[AUTHOR'S CLAIMS] ${authorHistory}\n\nNow ask critical questions about the paper and the author's arguments. Point out weaknesses, questionable claims, and areas that need improvement by framing them as questions. Keep your response under 40 seconds. If you need a moment to think, say "Let me analyze this" or "Interesting, let me think" so the listener knows you're preparing.`;
+    const message = `The author explained: "${authorHistory}"\n\nYou are now asking critical questions. What concerns or weaknesses do you see? Begin speaking now.`;
     await this.voice.relayToAgent('reviewer', message);
     this.statusMessage = 'Reviewer asking questions...';
     this.cdr.detectChanges();
@@ -978,6 +972,29 @@ export class App implements OnInit, OnDestroy {
       error: (err) => {
         console.error('Failed to fetch author context for debate:', err);
       },
+    });
+  }
+
+  private async sendDebatePdfContextAsync(): Promise<void> {
+    const activeSessionId = this.getActiveSessionId();
+    if (!activeSessionId) return;
+
+    return new Promise((resolve, reject) => {
+      this.api.getDebateContext(activeSessionId, 'author').subscribe({
+        next: async (res: any) => {
+          if (res.context) {
+            await this.voice.sendContextToRole(res.context, 'author');
+            console.log('[App] Sent debate author context');
+            resolve();
+          } else {
+            resolve();
+          }
+        },
+        error: (err) => {
+          console.error('Failed to fetch author context for debate:', err);
+          reject(err);
+        },
+      });
     });
   }
 

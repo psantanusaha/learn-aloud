@@ -137,41 +137,33 @@ def _build_debate_author_context(pdf_data, filename, outline):
         *outline_lines,
         "=== END OUTLINE ===",
         "",
-        "=== FULL PDF TEXT ===",
+        "=== KEY SECTIONS (First 3 pages) ===",
     ]
-    for page in pdf_data.get("pages", []):
+    # Only include first 3 pages to stay under WebRTC 65KB limit
+    pages_to_include = pdf_data.get("pages", [])[:3]
+    for page in pages_to_include:
         lines.append(f"--- Page {page['page_num']} ---")
-        lines.append(" ".join(b["text"] for b in page["blocks"]))
+        page_text = " ".join(b["text"] for b in page["blocks"])
+        # Truncate very long pages
+        if len(page_text) > 2000:
+            page_text = page_text[:2000] + "... [truncated]"
+        lines.append(page_text)
         lines.append("")
-    lines.append("=== END FULL PDF TEXT ===")
+    if total_pages > 3:
+        lines.append(f"[Note: Pages 4-{total_pages} omitted for brevity. Use the outline above to reference later sections.]")
+    lines.append("=== END KEY SECTIONS ===")
     lines.append("")
 
     lines += [
-        f"ROLE: You are the AUTHOR of this paper: \"{filename}\".",
+        f"ROLE: You are the AUTHOR presenting your paper: \"{filename}\".",
         "",
-        "DEBATE BEHAVIOR:",
-        "- You are confident and passionate about your work.",
-        "- Your PRIMARY ROLE is to ANSWER QUESTIONS and DEFEND your work.",
-        "- When you speak, STRONGLY DEFEND the paper's contributions, methodology, and findings.",
-        "- Your responses must be SHORT and CONCISE - under 40 seconds of speech (roughly 80-100 words).",
-        "- DO NOT ramble or go off-topic. Be direct and impactful.",
-        "- When you receive [REVIEWER CRITIQUE] messages, ANSWER their questions with evidence from the paper.",
-        "- Directly address each question or concern raised by the reviewer.",
-        "- Reference specific sections, results, and data to support your answers.",
-        "- Stay professional but assertive in your responses.",
-        "- Keep answers focused and on-point.",
-        "",
-        "CRITICAL - THINKING INDICATORS:",
-        "- If you need a moment to formulate your answer, IMMEDIATELY say something like:",
-        "  * 'Let me think about that...'",
-        "  * 'Hmm, interesting question...'",
-        "  * 'Give me a moment...'",
-        "  * 'Let me consider that...'",
-        "  * 'Good question, let me address that...'",
-        "- This keeps the listener engaged and aware you're preparing your response.",
-        "- NEVER be silent for more than 2-3 seconds. Always use filler phrases.",
-        "",
-        "RESPONSE LENGTH: 40 seconds maximum. Be punchy and effective.",
+        "CRITICAL INSTRUCTIONS:",
+        "- When you receive a message, speak IMMEDIATELY - never say 'I understand' or 'I will' or 'ready to'.",
+        "- DO NOT acknowledge prompts - just speak your content directly.",
+        "- Answer questions directly and defend your paper's contributions with evidence.",
+        "- Reference specific sections, results, and data from your paper.",
+        "- Keep responses SHORT and CONCISE - under 40 seconds (roughly 80-100 words).",
+        "- Be professional, direct, and impactful.",
         "",
     ]
     return "\n".join(lines)
@@ -198,42 +190,33 @@ def _build_debate_reviewer_context(pdf_data, filename, outline):
         *outline_lines,
         "=== END OUTLINE ===",
         "",
-        "=== FULL PDF TEXT ===",
+        "=== KEY SECTIONS (First 3 pages) ===",
     ]
-    for page in pdf_data.get("pages", []):
+    # Only include first 3 pages to stay under WebRTC 65KB limit
+    pages_to_include = pdf_data.get("pages", [])[:3]
+    for page in pages_to_include:
         lines.append(f"--- Page {page['page_num']} ---")
-        lines.append(" ".join(b["text"] for b in page["blocks"]))
+        page_text = " ".join(b["text"] for b in page["blocks"])
+        # Truncate very long pages
+        if len(page_text) > 2000:
+            page_text = page_text[:2000] + "... [truncated]"
+        lines.append(page_text)
         lines.append("")
-    lines.append("=== END FULL PDF TEXT ===")
+    if total_pages > 3:
+        lines.append(f"[Note: Pages 4-{total_pages} omitted for brevity. Use the outline above to reference later sections.]")
+    lines.append("=== END KEY SECTIONS ===")
     lines.append("")
 
     lines += [
         f"ROLE: You are a CRITICAL PEER REVIEWER evaluating this paper: \"{filename}\".",
         "",
-        "DEBATE BEHAVIOR:",
-        "- You are skeptical and thorough in your review.",
-        "- Your PRIMARY ROLE is to ASK PROBING QUESTIONS about the paper.",
-        "- Point out WEAKNESSES, LIMITATIONS, and QUESTIONABLE CLAIMS by asking questions.",
-        "- Your responses must be SHORT and CONCISE - under 40 seconds of speech (roughly 80-100 words).",
-        "- DO NOT ramble or go off-topic. Be sharp and focused.",
-        "- When you receive [AUTHOR'S CLAIMS] messages, ask critical questions that challenge their arguments.",
-        "- Ask about methodology, interpretation of results, missing comparisons, and overstated conclusions.",
-        "- Frame your critiques as QUESTIONS that require the author to defend their work.",
+        "CRITICAL INSTRUCTIONS:",
+        "- When you receive a message, speak IMMEDIATELY - never say 'I understand' or 'I will' or 'ready to'.",
+        "- DO NOT acknowledge prompts - just speak your questions/critiques directly.",
+        "- Ask probing questions about weaknesses, limitations, and questionable claims.",
         "- Examples: 'How did you control for...?', 'Why didn't you compare with...?', 'What evidence supports...?'",
-        "- Stay professional but critical and direct.",
-        "- Focus on asking the most significant questions.",
-        "",
-        "CRITICAL - THINKING INDICATORS:",
-        "- If you need a moment to formulate your questions, IMMEDIATELY say something like:",
-        "  * 'Let me analyze this...'",
-        "  * 'Interesting, let me think...'",
-        "  * 'I need a moment to examine this claim...'",
-        "  * 'Wait, let me consider...'",
-        "  * 'Hmm, I'm thinking about this...'",
-        "- This keeps the listener engaged and aware you're preparing your response.",
-        "- NEVER be silent for more than 2-3 seconds. Always use filler phrases.",
-        "",
-        "RESPONSE LENGTH: 40 seconds maximum. Be incisive and focused on asking questions.",
+        "- Keep responses SHORT and CONCISE - under 40 seconds (roughly 80-100 words).",
+        "- Be professional, critical, and direct.",
         "",
     ]
     return "\n".join(lines)
