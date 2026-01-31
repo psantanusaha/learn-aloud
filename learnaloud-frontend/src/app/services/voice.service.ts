@@ -204,21 +204,23 @@ export class VoiceService {
     this.setupRoomHandlers(this.authorRoom, 'author', this.authorAudioElements);
 
     try {
-      // Connect author room only — reviewer connects after author speaks
+      // Connect author room only — reviewer connects after debate starts
       await this.authorRoom.connect(authorUrl, authorToken);
       this.isConnected = true;
 
       try {
-        await this.authorRoom.localParticipant.setMicrophoneEnabled(true);
-        this.isMicEnabled = true;
+        // Start with mic DISABLED - only enable when author's turn starts
+        await this.authorRoom.localParticipant.setMicrophoneEnabled(false);
+        this.isMicEnabled = false;
         this.micError = '';
+        console.log('[Voice] Author room connected with mic disabled. Waiting for debate to start.');
       } catch (micErr: any) {
         console.error('[Voice] setMicrophoneEnabled failed:', micErr);
         this.isMicEnabled = false;
         this.micError = `Microphone failed: ${micErr.message || micErr}`;
       }
 
-      console.log('[Voice] Author room connected. Reviewer will connect after author speaks.');
+      console.log('[Voice] Author room connected. Reviewer will connect when debate starts.');
     } catch (e) {
       await this.disconnect();
       throw e;
@@ -237,12 +239,31 @@ export class VoiceService {
 
     try {
       await this.reviewerRoom.connect(this.pendingReviewerUrl, this.pendingReviewerToken);
-      await this.reviewerRoom.localParticipant.setMicrophoneEnabled(true);
-      console.log('[Voice] Reviewer room connected.');
+      // Start with mic DISABLED - only enable when reviewer's turn starts
+      await this.reviewerRoom.localParticipant.setMicrophoneEnabled(false);
+      console.log('[Voice] Reviewer room connected with mic disabled.');
     } catch (e) {
       console.error('[Voice] Reviewer room connection failed:', e);
       this.reviewerConnected = false;
     }
+  }
+
+  async disconnectReviewerRoom(): Promise<void> {
+    if (!this.reviewerRoom) return;
+
+    console.log('[Voice] Disconnecting reviewer room...');
+    try {
+      await this.reviewerRoom.disconnect(true);
+    } catch (e) {
+      console.error('[Voice] Error disconnecting reviewer room:', e);
+    }
+
+    this.reviewerRoom = null;
+    this.reviewerConnected = false;
+    this.reviewerAudioElements.forEach(el => el.remove());
+    this.reviewerAudioElements = [];
+
+    console.log('[Voice] Reviewer room disconnected and reset.');
   }
 
   private setupRoomHandlers(
@@ -452,6 +473,7 @@ export class VoiceService {
     this.isMicEnabled = false;
     this.isPaused = false;
     this.isDebateMode = false;
+    this.reviewerConnected = false;
     this.activeSpeaker = null;
     this.transcript = [];
   }

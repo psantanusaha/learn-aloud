@@ -86,9 +86,16 @@ export class App implements OnInit, OnDestroy {
   isDebateMode = false;
   showModeSelector = false;
   debateReviewerStarted = false;
+  isDebateActive = false;
+  isStartingDebate = false; // Guard against double-clicking Start Debate
+  debateHistory: { role: 'author' | 'reviewer'; text: string }[] = [];
   private debateRelayTimeout: any = null;
   private debateRelayBuffer: { role: 'author' | 'reviewer'; text: string }[] = [];
   private debateRelayedIds = new Set<string>();
+  private currentDebateTurn: 'author' | 'reviewer' = 'author';
+  private debateTurnTimeout: any = null;
+  private debateTurnInterval: any = null;
+  private pauseBetweenTurns = 3000; // 3 second pause between turns for smooth, natural transitions and to prevent cutoffs
 
   // -- Split resize --
   previewPanelWidth = 33;
@@ -484,23 +491,30 @@ export class App implements OnInit, OnDestroy {
             reviewerData.livekit_url,
             reviewerData.token,
           );
-          this.statusMessage = 'Debate session active — Author vs Reviewer';
+          this.statusMessage = 'Debate session ready — Click "Start Debate" to begin';
           this.voiceError = '';
           this.clearAgentActivity();
-          this.activity.post({ category: 'state', title: 'Debate session started' });
+          this.activity.post({ category: 'state', title: 'Debate session connected' });
           this.broadcastState();
           this.startStateSyncing();
+
+          // Mute both agents initially - they should not speak until debate starts
+          this.voice.muteAgentAudio('author');
+          this.voice.muteAgentAudio('reviewer');
+
           this.cdr.detectChanges();
 
-          // Send PDF context to author first — author speaks first
-          // Reviewer gets context after a delay, and stays silent until [AUTHOR] relay
-          this.sendDebatePdfContext();
+          // DON'T send PDF context yet - wait for user to click "Start Debate"
+          // this.sendDebatePdfContext();
         } catch (e: any) {
           if (this.voice.isConnected) {
-            this.statusMessage = 'Debate session active — Author vs Reviewer';
+            this.statusMessage = 'Debate session ready — Click "Start Debate" to begin';
             this.voiceError = '';
             this.clearAgentActivity();
-            this.sendDebatePdfContext();
+
+            // Mute both agents initially
+            this.voice.muteAgentAudio('author');
+            this.voice.muteAgentAudio('reviewer');
           } else {
             this.voiceError = `Failed to connect debate: ${e.message || e}`;
             this.clearAgentActivity();
@@ -526,6 +540,337 @@ export class App implements OnInit, OnDestroy {
     return entries.join(' ');
   }
 
+  private getDebateHistory(role?: 'author' | 'reviewer'): string {
+    // Get formatted debate history for context
+    const history = role 
+      ? this.debateHistory.filter(h => h.role === role)
+      : this.debateHistory;
+    
+    return history.slice(-10).map(h => `[${h.role.toUpperCase()}] ${h.text}`).join('\n');
+  }
+
+  private addToDebateHistory(role: 'author' | 'reviewer', text: string): void {
+    this.debateHistory.push({ role, text });
+    // Keep only last 20 turns to manage memory
+    if (this.debateHistory.length > 20) {
+      this.debateHistory = this.debateHistory.slice(-20);
+    }
+  }
+
+  async startAutomatedDebate(): Promise<void> {
+    // Prevent double-clicking or duplicate starts
+    if (!this.isDebateMode || this.isDebateActive || this.isStartingDebate) {
+      console.log('[Debate] Ignoring duplicate start request');
+      return;
+    }
+
+    console.log('[Debate] Starting automated debate...');
+    this.isStartingDebate = true;
+    this.isDebateActive = true;
+    this.debateHistory = [];
+    this.currentDebateTurn = 'author';
+    this.statusMessage = 'Starting debate...';
+    this.cdr.detectChanges();
+
+    // CRITICAL: Ensure both agents are muted and mics disabled BEFORE sending any context
+    this.voice.muteAgentAudio('author');
+    this.voice.muteAgentAudio('reviewer');
+    await this.voice.muteLocalMicInRoom('author');
+    await this.voice.muteLocalMicInRoom('reviewer');
+
+    console.log('[Debate] Both agents muted, now sending context to author...');
+
+    // Send PDF context to author now (when debate actually starts)
+    this.sendDebatePdfContext();
+
+    // Wait for context to be processed
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    console.log('[Debate] Starting author turn...');
+
+    // Start with author speaking first
+    await this.triggerAuthorTurn(true);
+
+    // Reset starting flag now that initialization is complete
+    this.isStartingDebate = false;
+  }
+
+  async endDebate(): Promise<void> {
+    if (!this.isDebateMode || !this.isDebateActive) return;
+
+    console.log('[Debate] Ending debate and cleaning up...');
+
+    this.isDebateActive = false;
+    this.isStartingDebate = false;
+
+    // Clear all timers and intervals
+    if (this.debateTurnTimeout) {
+      clearTimeout(this.debateTurnTimeout);
+      this.debateTurnTimeout = null;
+    }
+    if (this.debateTurnInterval) {
+      clearInterval(this.debateTurnInterval);
+      this.debateTurnInterval = null;
+    }
+
+    // Mute both agents audio
+    this.voice.muteAgentAudio('author');
+    this.voice.muteAgentAudio('reviewer');
+
+    // Disable microphones in both rooms
+    await this.voice.muteLocalMicInRoom('author');
+    if (this.debateReviewerStarted) {
+      await this.voice.muteLocalMicInRoom('reviewer');
+      // Disconnect reviewer room so it can reconnect fresh on restart
+      await this.voice.disconnectReviewerRoom();
+    }
+
+    // Reset debate state
+    this.currentDebateTurn = 'author';
+    this.debateHistory = [];
+    this.debateReviewerStarted = false; // Reset so reviewer reconnects on next debate
+
+    this.statusMessage = 'Debate ended - Click "Start Debate" to begin again';
+    this.activity.post({ category: 'state', title: 'Debate ended by user' });
+    this.cdr.detectChanges();
+
+    console.log('[Debate] Cleanup complete');
+  }
+
+  private async triggerAuthorTurn(isFirst: boolean = false): Promise<void> {
+    if (!this.isDebateActive) return;
+
+    console.log('[Debate] Triggering author turn...');
+    this.currentDebateTurn = 'author';
+
+    // CRITICAL: Ensure BOTH agents are fully muted before any changes
+    this.voice.muteAgentAudio('author');
+    this.voice.muteAgentAudio('reviewer');
+    await Promise.all([
+      this.voice.muteLocalMicInRoom('author'),
+      this.voice.muteLocalMicInRoom('reviewer')
+    ]);
+
+    console.log('[Debate] Both agents muted, waiting before enabling author...');
+
+    // Wait to ensure all muting is complete
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Now unmute ONLY author
+    this.voice.unmuteAgentAudio('author');
+    await this.voice.unmuteLocalMicInRoom('author');
+
+    console.log('[Debate] Author unmuted, waiting before sending message...');
+
+    // Wait before sending message to ensure audio is ready
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    if (isFirst) {
+      // First turn: author speaks about the paper
+      const message = `You are the author of this paper. Present your key findings and arguments in support of the paper. Keep your response under 40 seconds. Be strong and confident in defending your work.`;
+      await this.voice.relayToAgent('author', message);
+      this.statusMessage = 'Author presenting...';
+    } else {
+      // Subsequent turns: respond to reviewer
+      const reviewerHistory = this.getDebateHistory('reviewer');
+      const message = `[REVIEWER CRITIQUE] ${reviewerHistory}\\n\\nAnswer the reviewer's questions and respond to their critique. Address their concerns directly with evidence from your paper. Keep your response under 40 seconds.`;
+      await this.voice.relayToAgent('author', message);
+      this.statusMessage = 'Author responding...';
+    }
+
+    this.cdr.detectChanges();
+
+    // Wait for author to finish speaking, then schedule reviewer turn
+    this.scheduleNextTurn('reviewer');
+  }
+
+  private async triggerReviewerTurn(): Promise<void> {
+    if (!this.isDebateActive) return;
+
+    console.log('[Debate] Triggering reviewer turn...');
+    this.currentDebateTurn = 'reviewer';
+
+    // Ensure reviewer is connected
+    if (!this.debateReviewerStarted) {
+      this.debateReviewerStarted = true;
+      this.showAgentActivity('Connecting reviewer...');
+
+      console.log('[Debate] Connecting reviewer room for first time...');
+      await this.voice.connectReviewerRoom();
+
+      // Ensure reviewer is muted before sending context
+      this.voice.muteAgentAudio('reviewer');
+      await this.voice.muteLocalMicInRoom('reviewer');
+
+      // Send debate-specific context to reviewer
+      const activeSessionId = this.getActiveSessionId();
+      if (activeSessionId) {
+        await new Promise<void>((resolve) => {
+          this.api.getDebateContext(activeSessionId, 'reviewer').subscribe({
+            next: async (res: any) => {
+              if (res.context) {
+                console.log('[Debate] Sending context to reviewer...');
+                await this.voice.sendContextToRole(res.context, 'reviewer');
+                this.clearAgentActivity();
+                resolve();
+              }
+            },
+            error: (err) => {
+              console.error('Failed to send debate context to reviewer:', err);
+              this.clearAgentActivity();
+              resolve();
+            },
+          });
+        });
+      }
+
+      // Delay for context to settle
+      console.log('[Debate] Waiting for reviewer context to settle...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    // CRITICAL: Ensure BOTH agents are fully muted before any changes
+    this.voice.muteAgentAudio('author');
+    this.voice.muteAgentAudio('reviewer');
+    await Promise.all([
+      this.voice.muteLocalMicInRoom('author'),
+      this.voice.muteLocalMicInRoom('reviewer')
+    ]);
+
+    console.log('[Debate] Both agents muted, waiting before enabling reviewer...');
+
+    // Wait to ensure all muting is complete
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Now unmute ONLY reviewer
+    this.voice.unmuteAgentAudio('reviewer');
+    await this.voice.unmuteLocalMicInRoom('reviewer');
+
+    console.log('[Debate] Reviewer unmuted, waiting before sending message...');
+
+    // Wait before sending message to ensure audio is ready
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const authorHistory = this.getDebateHistory('author');
+    const message = `[AUTHOR'S CLAIMS] ${authorHistory}\n\nNow ask critical questions about the paper and the author's arguments. Point out weaknesses, questionable claims, and areas that need improvement by framing them as questions. Keep your response under 40 seconds. If you need a moment to think, say "Let me analyze this" or "Interesting, let me think" so the listener knows you're preparing.`;
+    await this.voice.relayToAgent('reviewer', message);
+    this.statusMessage = 'Reviewer asking questions...';
+    this.cdr.detectChanges();
+
+    // Start monitoring for reviewer's response
+    this.scheduleNextTurn('author');
+  }
+
+  private scheduleNextTurn(nextRole: 'author' | 'reviewer'): void {
+    // Clear any existing timeout and interval
+    if (this.debateTurnTimeout) {
+      clearTimeout(this.debateTurnTimeout);
+      this.debateTurnTimeout = null;
+    }
+    if (this.debateTurnInterval) {
+      clearInterval(this.debateTurnInterval);
+      this.debateTurnInterval = null;
+    }
+
+    const currentRole = nextRole === 'author' ? 'reviewer' : 'author';
+    const startTime = Date.now();
+    let lastSeenText = '';
+    let textStableCount = 0;
+    const MIN_TURN_DURATION = 30000; // Minimum 30 seconds before allowing switch
+    const MAX_TURN_DURATION = 45000; // Maximum 45 seconds before forcing switch
+
+    console.log(`[Debate] Monitoring ${currentRole} turn, will switch to ${nextRole} when done`);
+
+    // Monitor for when current speaker finishes - check frequently
+    this.debateTurnInterval = setInterval(() => {
+      if (!this.isDebateActive) {
+        clearInterval(this.debateTurnInterval);
+        return;
+      }
+
+      const elapsed = Date.now() - startTime;
+      const recentEntries = this.transcriptEntries
+        .filter(e => e.sender === 'agent' && e.role === currentRole && e.isFinal)
+        .slice(-1);
+
+      if (recentEntries.length > 0) {
+        const latestText = recentEntries[0].text;
+
+        // Check if text is stable (not changing) AND we've passed minimum duration
+        if (latestText === lastSeenText && latestText.length > 15 && elapsed >= MIN_TURN_DURATION) {
+          textStableCount++;
+
+          // Wait for 12 consecutive stable checks (2.4 seconds total) to ensure speaker is truly done
+          if (textStableCount >= 12) {
+            console.log(`[Debate] ${currentRole} appears finished after ${(elapsed/1000).toFixed(1)}s`);
+
+            // Add to debate history if not already added
+            const alreadyInHistory = this.debateHistory.some(h =>
+              h.role === currentRole && h.text === latestText
+            );
+
+            if (!alreadyInHistory) {
+              this.addToDebateHistory(currentRole, latestText);
+            }
+
+            // Clear interval
+            clearInterval(this.debateTurnInterval);
+
+            // Immediately mute current speaker to prevent overlap
+            this.voice.muteAgentAudio(currentRole);
+            console.log(`[Debate] Muted ${currentRole} to prevent overlap`);
+
+            // Wait after speech completes before next agent starts
+            console.log(`[Debate] Switching to ${nextRole} in ${this.pauseBetweenTurns/1000}s...`);
+            this.debateTurnTimeout = setTimeout(() => {
+              if (this.isDebateActive) {
+                if (nextRole === 'author') {
+                  this.triggerAuthorTurn(false);
+                } else {
+                  this.triggerReviewerTurn();
+                }
+              }
+            }, this.pauseBetweenTurns);
+          }
+        } else {
+          lastSeenText = latestText;
+          textStableCount = 0;
+        }
+      }
+
+      // Hard limit: force switch after 45 seconds
+      if (elapsed > MAX_TURN_DURATION) {
+        clearInterval(this.debateTurnInterval);
+        console.log(`[Debate] Force switching to ${nextRole} after ${(elapsed/1000).toFixed(1)}s (max duration reached)`);
+
+        // Add whatever we have to history
+        if (lastSeenText && lastSeenText.length > 10) {
+          const alreadyInHistory = this.debateHistory.some(h =>
+            h.role === currentRole && h.text === lastSeenText
+          );
+          if (!alreadyInHistory) {
+            this.addToDebateHistory(currentRole, lastSeenText);
+          }
+        }
+
+        // Immediately mute current speaker to prevent overlap
+        this.voice.muteAgentAudio(currentRole);
+        console.log(`[Debate] Force muted ${currentRole} to prevent overlap`);
+
+        // Trigger next turn with a brief pause
+        this.debateTurnTimeout = setTimeout(() => {
+          if (this.isDebateActive) {
+            if (nextRole === 'author') {
+              this.triggerAuthorTurn(false);
+            } else {
+              this.triggerReviewerTurn();
+            }
+          }
+        }, this.pauseBetweenTurns);
+      }
+    }, 200); // Check every 200ms
+  }
+
   async askReviewer(): Promise<void> {
     if (!this.isDebateMode) return;
 
@@ -536,9 +881,12 @@ export class App implements OnInit, OnDestroy {
       return;
     }
 
-    // Mute author audio + cut mic in author room so author stops hearing student
+    // STRICT SYNCHRONIZATION: Mute author FIRST
     this.voice.muteAgentAudio('author');
     await this.voice.muteLocalMicInRoom('author');
+
+    // Small delay to ensure author is fully muted
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     if (!this.debateReviewerStarted) {
       this.debateReviewerStarted = true;
@@ -546,17 +894,19 @@ export class App implements OnInit, OnDestroy {
       this.cdr.detectChanges();
 
       await this.voice.connectReviewerRoom();
-      this.voice.unmuteAgentAudio('reviewer');
 
-      // Send PDF context to reviewer
+      // Send debate-specific context to reviewer
       const activeSessionId = this.getActiveSessionId();
       if (activeSessionId) {
-        this.api.getPaperContext(activeSessionId).subscribe({
+        this.api.getDebateContext(activeSessionId, 'reviewer').subscribe({
           next: async (res: any) => {
             if (res.context) {
               await this.voice.sendContextToRole(res.context, 'reviewer');
-              // After context settles, relay author's points
+              // After context settles, unmute and relay
               setTimeout(async () => {
+                this.voice.unmuteAgentAudio('reviewer');
+                await this.voice.unmuteLocalMicInRoom('reviewer');
+                await new Promise(resolve => setTimeout(resolve, 200));
                 await this.voice.relayToAgent('reviewer', `[AUTHOR] ${authorText}`);
                 this.clearAgentActivity();
                 this.statusMessage = 'Reviewer is responding...';
@@ -565,14 +915,19 @@ export class App implements OnInit, OnDestroy {
             }
           },
           error: (err) => {
-            console.error('Failed to send context to reviewer:', err);
+            console.error('Failed to send debate context to reviewer:', err);
             this.clearAgentActivity();
           },
         });
       }
     } else {
+      // Unmute reviewer
       this.voice.unmuteAgentAudio('reviewer');
       await this.voice.unmuteLocalMicInRoom('reviewer');
+
+      // Small delay before sending message
+      await new Promise(resolve => setTimeout(resolve, 200));
+
       await this.voice.relayToAgent('reviewer', `[AUTHOR] ${authorText}`);
       this.statusMessage = 'Reviewer is responding...';
       this.cdr.detectChanges();
@@ -589,13 +944,19 @@ export class App implements OnInit, OnDestroy {
       return;
     }
 
-    // Mute reviewer audio + cut mic in reviewer room so reviewer stops hearing student
+    // STRICT SYNCHRONIZATION: Mute reviewer FIRST
     this.voice.muteAgentAudio('reviewer');
     await this.voice.muteLocalMicInRoom('reviewer');
 
-    // Unmute author audio + restore mic in author room
+    // Small delay to ensure reviewer is fully muted
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Now unmute author
     this.voice.unmuteAgentAudio('author');
     await this.voice.unmuteLocalMicInRoom('author');
+
+    // Small delay before sending message
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     await this.voice.relayToAgent('author', `[REVIEWER] ${reviewerText}`);
     this.statusMessage = 'Author is responding...';
@@ -606,16 +967,16 @@ export class App implements OnInit, OnDestroy {
     const activeSessionId = this.getActiveSessionId();
     if (!activeSessionId) return;
 
-    // Only send to author — reviewer isn't connected yet
-    this.api.getPaperContext(activeSessionId).subscribe({
+    // Send debate-specific context to author (author speaks first)
+    this.api.getDebateContext(activeSessionId, 'author').subscribe({
       next: async (res: any) => {
         if (res.context) {
           await this.voice.sendContextToRole(res.context, 'author');
-          console.log('[App] Sent PDF context to author only');
+          console.log('[App] Sent debate author context');
         }
       },
       error: (err) => {
-        console.error('Failed to fetch paper context for debate:', err);
+        console.error('Failed to fetch author context for debate:', err);
       },
     });
   }
@@ -663,12 +1024,22 @@ export class App implements OnInit, OnDestroy {
     await this.voice.disconnect();
     // Clean up debate state
     this.isDebateMode = false;
+    this.isDebateActive = false;
     this.debateReviewerStarted = false;
+    this.debateHistory = [];
     this.debateRelayBuffer = [];
     this.debateRelayedIds.clear();
     if (this.debateRelayTimeout) {
       clearTimeout(this.debateRelayTimeout);
       this.debateRelayTimeout = null;
+    }
+    if (this.debateTurnTimeout) {
+      clearTimeout(this.debateTurnTimeout);
+      this.debateTurnTimeout = null;
+    }
+    if (this.debateTurnInterval) {
+      clearInterval(this.debateTurnInterval);
+      this.debateTurnInterval = null;
     }
     this.statusMessage = 'Voice session ended';
     this.activity.post({ category: 'state', title: 'Voice session ended' });

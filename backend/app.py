@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import uuid
 import time
@@ -17,7 +20,7 @@ load_dotenv()
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "learnaloud-secret"
 CORS(app, resources={r"/api/*": {"origins": "*"}})
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -108,6 +111,129 @@ def _build_pdf_context(pdf_data, filename, outline):
         "Workflow: read the reference text from the PDF above → search ArXiv with the title → get_paper_details → summarize for the student → offer download_paper.",
         "",
         "MULTI-PAPER: You may receive paper_switched messages. Acknowledge briefly and give a 2-3 sentence overview. Use session_id in highlights for non-main papers.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _build_debate_author_context(pdf_data, filename, outline):
+    """Build context for the author agent in debate mode."""
+    outline_lines = []
+    if outline.get("abstract"):
+        outline_lines.append(f"ABSTRACT: {outline['abstract']}")
+        outline_lines.append("")
+    if outline.get("sections"):
+        outline_lines.append("PAPER STRUCTURE:")
+        for s in outline["sections"]:
+            indent = "  " if s["level"] == 2 else ""
+            outline_lines.append(f"{indent}- {s['heading']} (page {s['page']})")
+        outline_lines.append("")
+
+    total_pages = pdf_data.get("total_pages", len(pdf_data.get("pages", [])))
+    lines = [
+        f'PDF: "{filename}" — {total_pages} pages.',
+        "",
+        "=== PAPER OUTLINE ===",
+        *outline_lines,
+        "=== END OUTLINE ===",
+        "",
+        "=== FULL PDF TEXT ===",
+    ]
+    for page in pdf_data.get("pages", []):
+        lines.append(f"--- Page {page['page_num']} ---")
+        lines.append(" ".join(b["text"] for b in page["blocks"]))
+        lines.append("")
+    lines.append("=== END FULL PDF TEXT ===")
+    lines.append("")
+
+    lines += [
+        f"ROLE: You are the AUTHOR of this paper: \"{filename}\".",
+        "",
+        "DEBATE BEHAVIOR:",
+        "- You are confident and passionate about your work.",
+        "- Your PRIMARY ROLE is to ANSWER QUESTIONS and DEFEND your work.",
+        "- When you speak, STRONGLY DEFEND the paper's contributions, methodology, and findings.",
+        "- Your responses must be SHORT and CONCISE - under 40 seconds of speech (roughly 80-100 words).",
+        "- DO NOT ramble or go off-topic. Be direct and impactful.",
+        "- When you receive [REVIEWER CRITIQUE] messages, ANSWER their questions with evidence from the paper.",
+        "- Directly address each question or concern raised by the reviewer.",
+        "- Reference specific sections, results, and data to support your answers.",
+        "- Stay professional but assertive in your responses.",
+        "- Keep answers focused and on-point.",
+        "",
+        "CRITICAL - THINKING INDICATORS:",
+        "- If you need a moment to formulate your answer, IMMEDIATELY say something like:",
+        "  * 'Let me think about that...'",
+        "  * 'Hmm, interesting question...'",
+        "  * 'Give me a moment...'",
+        "  * 'Let me consider that...'",
+        "  * 'Good question, let me address that...'",
+        "- This keeps the listener engaged and aware you're preparing your response.",
+        "- NEVER be silent for more than 2-3 seconds. Always use filler phrases.",
+        "",
+        "RESPONSE LENGTH: 40 seconds maximum. Be punchy and effective.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _build_debate_reviewer_context(pdf_data, filename, outline):
+    """Build context for the reviewer agent in debate mode."""
+    outline_lines = []
+    if outline.get("abstract"):
+        outline_lines.append(f"ABSTRACT: {outline['abstract']}")
+        outline_lines.append("")
+    if outline.get("sections"):
+        outline_lines.append("PAPER STRUCTURE:")
+        for s in outline["sections"]:
+            indent = "  " if s["level"] == 2 else ""
+            outline_lines.append(f"{indent}- {s['heading']} (page {s['page']})")
+        outline_lines.append("")
+
+    total_pages = pdf_data.get("total_pages", len(pdf_data.get("pages", [])))
+    lines = [
+        f'PDF: "{filename}" — {total_pages} pages.',
+        "",
+        "=== PAPER OUTLINE ===",
+        *outline_lines,
+        "=== END OUTLINE ===",
+        "",
+        "=== FULL PDF TEXT ===",
+    ]
+    for page in pdf_data.get("pages", []):
+        lines.append(f"--- Page {page['page_num']} ---")
+        lines.append(" ".join(b["text"] for b in page["blocks"]))
+        lines.append("")
+    lines.append("=== END FULL PDF TEXT ===")
+    lines.append("")
+
+    lines += [
+        f"ROLE: You are a CRITICAL PEER REVIEWER evaluating this paper: \"{filename}\".",
+        "",
+        "DEBATE BEHAVIOR:",
+        "- You are skeptical and thorough in your review.",
+        "- Your PRIMARY ROLE is to ASK PROBING QUESTIONS about the paper.",
+        "- Point out WEAKNESSES, LIMITATIONS, and QUESTIONABLE CLAIMS by asking questions.",
+        "- Your responses must be SHORT and CONCISE - under 40 seconds of speech (roughly 80-100 words).",
+        "- DO NOT ramble or go off-topic. Be sharp and focused.",
+        "- When you receive [AUTHOR'S CLAIMS] messages, ask critical questions that challenge their arguments.",
+        "- Ask about methodology, interpretation of results, missing comparisons, and overstated conclusions.",
+        "- Frame your critiques as QUESTIONS that require the author to defend their work.",
+        "- Examples: 'How did you control for...?', 'Why didn't you compare with...?', 'What evidence supports...?'",
+        "- Stay professional but critical and direct.",
+        "- Focus on asking the most significant questions.",
+        "",
+        "CRITICAL - THINKING INDICATORS:",
+        "- If you need a moment to formulate your questions, IMMEDIATELY say something like:",
+        "  * 'Let me analyze this...'",
+        "  * 'Interesting, let me think...'",
+        "  * 'I need a moment to examine this claim...'",
+        "  * 'Wait, let me consider...'",
+        "  * 'Hmm, I'm thinking about this...'",
+        "- This keeps the listener engaged and aware you're preparing your response.",
+        "- NEVER be silent for more than 2-3 seconds. Always use filler phrases.",
+        "",
+        "RESPONSE LENGTH: 40 seconds maximum. Be incisive and focused on asking questions.",
         "",
     ]
     return "\n".join(lines)
@@ -340,6 +466,33 @@ def debate_tokens():
     })
 
 
+@app.route("/api/debate-context/<session_id>/<role>", methods=["GET"])
+def debate_context(session_id, role):
+    """Get debate-specific context for author or reviewer agent."""
+    session = sessions.get(session_id)
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+
+    if role not in ["author", "reviewer"]:
+        return jsonify({"error": "Role must be 'author' or 'reviewer'"}), 400
+
+    pdf_data = session["pdf_data"]
+    filename = session.get("filename", "")
+    outline = session.get("outline", {})
+
+    if role == "author":
+        context = _build_debate_author_context(pdf_data, filename, outline)
+    else:
+        context = _build_debate_reviewer_context(pdf_data, filename, outline)
+
+    return jsonify({
+        "session_id": session_id,
+        "role": role,
+        "filename": filename,
+        "context": context,
+    })
+
+
 # ---------------------------------------------------------------------------
 # Agent endpoints
 # ---------------------------------------------------------------------------
@@ -546,9 +699,5 @@ def handle_disconnect():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # Suppress noisy Werkzeug 3.x assertion on WebSocket upgrade (cosmetic, not a real error)
-    import logging
-    logging.getLogger("werkzeug").setLevel(logging.WARNING)
-
-    print("LearnAloud backend running on http://localhost:5000")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)
+    print("LearnAloud backend running on http://localhost:8000")
+    socketio.run(app, host="0.0.0.0", port=8000, debug=True)

@@ -1855,6 +1855,46 @@ app-agent-results-panel {
   transition: background 0.15s, color 0.15s;
 }
 
+.debate-start-btn {
+  border-color: #4caf50;
+  background: #4caf50;
+  color: #fff;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.debate-start-btn:hover {
+  background: #45a049;
+  border-color: #45a049;
+}
+
+.debate-end-btn {
+  border-color: #f44336;
+  background: #f44336;
+  color: #fff;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.debate-end-btn:hover {
+  background: #da190b;
+  border-color: #da190b;
+}
+
+.debate-status {
+  padding: 10px;
+  margin-bottom: 8px;
+  background: #e8f5e9;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.debate-progress-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2e7d32;
+}
+
 .debate-btn-reviewer {
   border-color: #e91e63;
   background: #fff;
@@ -1881,6 +1921,24 @@ app-agent-results-panel {
 
 .mobile-btn-author {
   background: #2196f3;
+}
+
+.mobile-btn-debate-start {
+  background: #4caf50;
+  color: #fff;
+}
+
+.mobile-btn-debate-start:hover {
+  background: #45a049;
+}
+
+.mobile-btn-debate-end {
+  background: #f44336;
+  color: #fff;
+}
+
+.mobile-btn-debate-end:hover {
+  background: #da190b;
 }
 
 .debate-hint {
