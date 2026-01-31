@@ -50,6 +50,10 @@ export class ApiService {
     return this.http.get(`${this.baseUrl}/paper-context/${sessionId}`);
   }
 
+  getDebateContext(sessionId: string, role: 'author' | 'reviewer'): Observable<any> {
+    return this.http.get(`${this.baseUrl}/debate-context/${sessionId}/${role}`);
+  }
+
   getSessionState(sessionId: string): Observable<any> {
     return this.http.get(`${this.baseUrl}/session/${sessionId}/state`);
   }

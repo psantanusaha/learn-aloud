@@ -268,15 +268,18 @@
                           <span>{{ debateActiveSpeaker === 'author' ? 'Author speaking' : 'Reviewer speaking' }}</span>
                         </div>
                       }
-                      <div class="debate-turn-controls" role="group" aria-label="Debate turn controls">
-                        <button class="debate-btn debate-btn-reviewer" (click)="askReviewer()" aria-label="Ask the reviewer to critique the author's points">
-                          Ask Reviewer
+                      @if (!isDebateActive) {
+                        <button class="debate-btn debate-start-btn" (click)="startAutomatedDebate()" aria-label="Start automated debate between author and reviewer">
+                          Start Debate
                         </button>
-                        <button class="debate-btn debate-btn-author" (click)="askAuthor()" aria-label="Ask the author to respond to the reviewer's critique">
-                          Ask Author
+                      } @else {
+                        <div class="debate-status" role="status" aria-live="polite">
+                          <span class="debate-progress-text">Debate in progress...</span>
+                        </div>
+                        <button class="debate-btn debate-end-btn" (click)="endDebate()" aria-label="End the debate">
+                          End Debate
                         </button>
-                      </div>
-                      <p class="debate-hint" aria-label="You can also say reviewer or author to switch speakers">Say "reviewer" or "author" to switch, or use the buttons</p>
+                      }
                     }
                     <div class="voice-action-row" role="group" aria-label="Voice session controls">
                       <button
@@ -471,9 +474,11 @@
               <button class="mobile-btn" (click)="togglePause()" [attr.aria-label]="isPaused ? 'Resume voice session' : 'Pause voice session'">
                 {{ isPaused ? 'Resume' : 'Pause' }}
               </button>
-              @if (isDebateMode) {
-                <button class="mobile-btn mobile-btn-reviewer" (click)="askReviewer()" aria-label="Ask the reviewer to critique">Reviewer</button>
-                <button class="mobile-btn mobile-btn-author" (click)="askAuthor()" aria-label="Ask the author to respond">Author</button>
+              @if (isDebateMode && !isDebateActive) {
+                <button class="mobile-btn mobile-btn-debate-start" (click)="startAutomatedDebate()" aria-label="Start debate">Start Debate</button>
+              }
+              @if (isDebateMode && isDebateActive) {
+                <button class="mobile-btn mobile-btn-debate-end" (click)="endDebate()" aria-label="End debate">End Debate</button>
               }
               <button class="mobile-btn mobile-btn-transcript" (click)="toggleMobileTranscript()" aria-label="Open transcript chat">
                 Chat
