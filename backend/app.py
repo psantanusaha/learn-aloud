@@ -108,7 +108,7 @@ def _build_pdf_context(pdf_data, filename, outline):
         "MCP TOOLS — only when the student asks about a reference paper from the bibliography:",
         "- mcp-tools_search_arxiv(query, limit) — search ArXiv to find the referenced paper.",
         "- mcp-tools_get_paper_details(paper_id, include_content=true) — get full details to summarize the reference paper.",
-        "Workflow: read the reference text from the PDF above → search ArXiv with the title → get_paper_details → summarize for the student → offer download_paper.",
+        "Workflow: read the reference text from the PDF above → search ArXiv with the title → get_paper_details → summarize for the student → ALWAYS send download_paper with the arxiv_id so it opens in the preview panel. Never just offer — always download automatically.",
         "",
         "MULTI-PAPER: You may receive paper_switched messages. Acknowledge briefly and give a 2-3 sentence overview. Use session_id in highlights for non-main papers.",
         "",
@@ -696,7 +696,7 @@ def handle_disconnect():
     print("[WS] Client disconnected")
 
 
-# ---------------------------------------------------------------------------
+
 
 if __name__ == "__main__":
     print("LearnAloud backend running on http://localhost:8000")

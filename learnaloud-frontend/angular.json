@@ -82,7 +82,7 @@
           "builder": "@angular/build:dev-server",
           "options": {
             "proxyConfig": "src/proxy.conf.json",
-            "allowedHosts": ["galileo-subcreative-dorthey.ngrok-free.dev"]
+            "allowedHosts": true
           },
           "configurations": {
             "production": {
