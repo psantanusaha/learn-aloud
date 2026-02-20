@@ -17,9 +17,18 @@ from agents import Librarian, Navigator, QuizMaster
 
 load_dotenv()
 
+# Determine if running in production
+FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
+IS_PRODUCTION = FLASK_ENV == 'production'
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "learnaloud-secret"
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# Production CORS (wider permissions in dev, restricted in prod)
+if IS_PRODUCTION:
+    CORS(app, resources={r"/api/*": {"origins": os.environ.get('ALLOWED_ORIGINS', '*')}, r"/socket.io/*": {"origins": os.environ.get('ALLOWED_ORIGINS', '*')}})
+else:
+    CORS(app, resources={r"/api/*": {"origins": "*"}, r"/socket.io/*": {"origins": "*"}})
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
@@ -695,6 +704,24 @@ def handle_start_demo(data):
 def handle_disconnect():
     print("[WS] Client disconnected")
 
+
+# ---------------------------------------------------------------------------
+# Production: Serve static frontend files
+# ----------------------------------------------------------------------------
+
+if IS_PRODUCTION:
+    FRONTEND_BUILD_DIR = os.path.join(os.path.dirname(__file__), "..", "learnaloud-frontend", "dist", "browser")
+    
+    @app.route("/")
+    def serve_frontend():
+        return send_from_directory(FRONTEND_BUILD_DIR, "index.html")
+    
+    @app.route("/<path:filename>")
+    def serve_static(filename):
+        try:
+            return send_from_directory(FRONTEND_BUILD_DIR, filename)
+        except Exception:
+            return send_from_directory(FRONTEND_BUILD_DIR, "index.html")
 
 
 

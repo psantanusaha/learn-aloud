@@ -1,0 +1,11 @@
+.git
+.gitignore
+.pytest_cache
+.venv
+node_modules
+*.log
+README.md
+DEPLOYMENT.md
+setup.sh
+pytest.ini
+*.md

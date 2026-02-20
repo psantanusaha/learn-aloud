@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learnaloud-frontend
+  namespace: learnaloud
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: learnaloud-frontend
+  template:
+    metadata:
+      labels:
+        app: learnaloud-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: ghcr.io/psantanusaha/learnaloud-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
