@@ -1,0 +1,308 @@
+<!-- Auth Gate Overlay -->
+@if (showAuthGate) {
+  <div class="auth-gate-overlay">
+    <div class="auth-gate-card">
+      <h2 class="auth-gate-title">Keep learning</h2>
+      <p class="auth-gate-sub">Sign up free to continue — no credit card needed.</p>
+      @if (signupError) { <p class="auth-error">{{ signupError }}</p> }
+      @if (signupSubmitting) {
+        <p class="auth-signing-in">Signing in…</p>
+      } @else {
+        <div id="google-signin-btn"></div>
+      }
+    </div>
+  </div>
+}
+
+<!-- Onboarding Overlay -->
+@if (showOnboarding) {
+  <div class="onboarding-overlay">
+    <div class="onboarding-card">
+      <h2 class="onboarding-title">Welcome to your session</h2>
+      <ul class="onboarding-list">
+        <li class="onboarding-item">
+          <span class="onboarding-dot dot-amber"></span>
+          <span>I'll walk through this with you, explaining as we go</span>
+        </li>
+        <li class="onboarding-item">
+          <span class="onboarding-dot dot-green"></span>
+          <span>Just speak anytime to ask me a question</span>
+        </li>
+        <li class="onboarding-item">
+          <span class="onboarding-dot dot-purple"></span>
+          <span>I'll check in occasionally with a quick question</span>
+        </li>
+      </ul>
+      <button class="onboarding-button" (click)="dismissOnboarding()">
+        Let's start
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+}
+
+<!-- Main Session Layout -->
+<div class="session-layout">
+
+  <!-- Top Bar (52px) -->
+  <header class="top-bar">
+    <div class="top-bar-left">
+      <button class="back-button" (click)="onBack()" aria-label="Go back">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+      </button>
+      <div class="doc-info">
+        <span class="doc-title">{{ documentTitle }}</span>
+        <span class="doc-pages">{{ currentPage }} / {{ totalPages }} pages</span>
+      </div>
+    </div>
+
+    <div class="top-bar-right">
+      <div class="progress-widget">
+        <div class="progress-bar-row">
+          <span class="pbar-label">Coverage</span>
+          <div class="pbar-track">
+            <div class="pbar-fill pbar-amber"
+                 [style.width.%]="(sessionService.coverage$ | async) ?? 0"></div>
+          </div>
+          <span class="pbar-value">{{ (sessionService.coverage$ | async) ?? 0 }}%</span>
+        </div>
+        <div class="progress-bar-row">
+          <span class="pbar-label">Depth</span>
+          <div class="pbar-track">
+            <div class="pbar-fill pbar-teal"
+                 [style.width.%]="(((sessionService.depth$ | async) ?? 0) / 5) * 100"></div>
+          </div>
+          <span class="pbar-value">{{ ((sessionService.depth$ | async) ?? 0) | number:'1.1-1' }}</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Two-Column Content -->
+  <div class="content-grid">
+
+    <!-- PDF Panel (left, 62%) -->
+    <section class="pdf-panel">
+      <!-- PDF toolbar -->
+      <div class="pdf-toolbar">
+        <div class="pdf-toolbar-left">
+          <button class="pdf-tool-btn" aria-label="Zoom out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M8 11h6"/>
+            </svg>
+          </button>
+          <button class="pdf-tool-btn" aria-label="Zoom in">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
+            </svg>
+          </button>
+          <span class="pdf-page-indicator">Page {{ currentPage }}</span>
+        </div>
+        <div class="pdf-toolbar-right">
+          <button class="pdf-tool-btn" aria-label="Coverage map">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- PDF viewer -->
+      <div class="pdf-content">
+        <app-pdf-viewer
+          [pdfUrl]="pdfUrl"
+          [sessionId]="routeSessionId"
+          (pageChanged)="onPdfPageChanged($event)"
+        ></app-pdf-viewer>
+      </div>
+    </section>
+
+    <!-- Voice Panel (right, 38%) -->
+    <aside class="voice-panel">
+
+      <!-- Zone A: Listening State -->
+      <div class="zone-a">
+        <div class="state-row">
+          <div class="state-indicator">
+            <span class="state-dot" [ngClass]="stateDotClass"></span>
+            <span class="state-label">{{ stateLabel }}</span>
+            @if (!showAuthGate && trialSecondsLeft <= 10 && trialSecondsLeft > 0) {
+              <span class="trial-badge">{{ trialSecondsLeft }}s trial</span>
+            }
+          </div>
+          <div class="interrupt-pill">
+            <span class="pill-dot"></span>
+            <span>Just speak to interrupt</span>
+          </div>
+        </div>
+
+        <!-- Dual Waveform -->
+        <div class="dual-waveform">
+          <div class="waveform-half waveform-tutor">
+            <span class="waveform-label">TUTOR</span>
+            <la-waveform
+              [bars]="8"
+              color="amber"
+              [animated]="tutorWaveformAnimated"
+            ></la-waveform>
+          </div>
+          <div class="waveform-divider"></div>
+          <div class="waveform-half waveform-user">
+            <span class="waveform-label">YOU</span>
+            <la-waveform
+              [bars]="8"
+              color="green"
+              [animated]="userWaveformAnimated"
+            ></la-waveform>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zone B: Controls -->
+      <div class="zone-b">
+        <button
+          class="control-btn"
+          [class.control-active]="isPaused"
+          (click)="onPauseToggle()"
+        >
+          @if (isPaused) {
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          } @else {
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+            </svg>
+          }
+          <span>{{ pauseButtonLabel }}</span>
+        </button>
+
+        <button
+          class="control-btn"
+          [class.control-muted]="!isMicEnabled"
+          (click)="onToggleMic()"
+        >
+          @if (isMicEnabled) {
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          } @else {
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="1" y1="1" x2="23" y2="23"/>
+              <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
+              <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/>
+              <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          }
+          <span>{{ isMicEnabled ? 'Mute mic' : 'Unmute mic' }}</span>
+        </button>
+
+        <button class="control-btn control-end" (click)="onEnd()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          </svg>
+          <span>End session</span>
+        </button>
+      </div>
+
+      <!-- Voice Command Hints -->
+      <div class="command-hints">
+        <p class="hints-heading">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          </svg>
+          You can guide the tutor by saying:
+        </p>
+        <div class="hints-scroll">
+          <span class="hint-chip">"Jump to the results"</span>
+          <span class="hint-chip">"Explain that again"</span>
+          <span class="hint-chip">"Go into more detail"</span>
+          <span class="hint-chip">"What does X mean?"</span>
+          <span class="hint-chip">"Go to page 5"</span>
+          <span class="hint-chip">"Show me the figures"</span>
+          <span class="hint-chip">"Summarise so far"</span>
+          <span class="hint-chip">"Skip this section"</span>
+        </div>
+      </div>
+
+      <!-- Zone C: Transcript -->
+      <div class="zone-c">
+        @if (transcript.length === 0) {
+          <div class="transcript-empty">
+            <p>Your conversation will appear here</p>
+          </div>
+        } @else {
+          @for (message of transcript; track trackByMessageId($index, message)) {
+            <div class="transcript-message" [class.message-user]="message.role === 'user'">
+              <div class="message-header">
+                <span class="message-role">{{ message.role === 'user' ? 'You' : 'Tutor' }}</span>
+                <span class="message-time">{{ getRelativeTime(message.timestamp) }}</span>
+              </div>
+              <p class="message-text">{{ message.text }}</p>
+              @if (message.page) {
+                <div class="message-ref">
+                  <span class="ref-icon">📍</span>
+                  <span>Page {{ message.page }}</span>
+                </div>
+              }
+            </div>
+          }
+        }
+      </div>
+
+      <!-- Zone D: Text Input -->
+      <div class="zone-d">
+        <div class="input-row">
+          <button
+            class="mic-btn"
+            [class.mic-muted]="!isMicEnabled"
+            (click)="onToggleMic()"
+            [attr.aria-label]="isMicEnabled ? 'Mute microphone' : 'Unmute microphone'"
+          >
+            @if (isMicEnabled) {
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            } @else {
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="1" y1="1" x2="23" y2="23"/>
+                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
+                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/>
+                <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            }
+          </button>
+          <input
+            type="text"
+            class="chat-input"
+            placeholder="voice is active — or type a question"
+            [(ngModel)]="chatText"
+            (keydown)="onChatKeydown($event)"
+          />
+          <button
+            class="send-btn"
+            (click)="onSendChat()"
+            [disabled]="!chatText.trim()"
+            aria-label="Send message"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+    </aside>
+  </div>
+</div>

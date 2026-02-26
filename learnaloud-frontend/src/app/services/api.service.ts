@@ -70,6 +70,14 @@ export class ApiService {
     return this.http.post(`${this.baseUrl}/quiz/start`, { session_id: sessionId });
   }
 
+  signup(name: string, email: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/auth/signup`, { name, email });
+  }
+
+  googleSignin(credential: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/auth/google`, { credential });
+  }
+
   // ---- WebSocket (Socket.IO) ------------------------------------------------
 
   connectSocket(): void {

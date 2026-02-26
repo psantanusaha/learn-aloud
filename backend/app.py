@@ -4,16 +4,22 @@ eventlet.monkey_patch()
 import os
 import uuid
 import time
+import json
 import threading
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 
+import fitz  # PyMuPDF
 from pdf_processor import PDFProcessor
 from vocal_bridge import VocalBridgeClient
 from agents import Librarian, Navigator, QuizMaster
+
+import jwt as pyjwt
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 load_dotenv()
 
@@ -33,6 +39,65 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Session persistence storage
+SESSIONS_DIR = os.path.join(os.path.dirname(__file__), "session_data")
+os.makedirs(SESSIONS_DIR, exist_ok=True)
+SESSIONS_INDEX_FILE = os.path.join(SESSIONS_DIR, "sessions_index.json")
+USERS_FILE = os.path.join(SESSIONS_DIR, "users.json")
+
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+JWT_SECRET = os.environ.get('JWT_SECRET', 'learnaloud-jwt-secret-change-in-prod')
+JWT_EXPIRY_HOURS = 24
+
+
+def _require_auth():
+    """Validate Bearer JWT from Authorization header. Returns payload dict or None."""
+    auth = request.headers.get('Authorization', '')
+    if not auth.startswith('Bearer '):
+        return None
+    try:
+        return pyjwt.decode(auth[7:], JWT_SECRET, algorithms=['HS256'])
+    except Exception:
+        return None
+
+
+def _load_sessions_index():
+    """Load the sessions index from disk."""
+    if os.path.exists(SESSIONS_INDEX_FILE):
+        try:
+            with open(SESSIONS_INDEX_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {"sessions": []}
+    return {"sessions": []}
+
+
+def _save_sessions_index(index):
+    """Save the sessions index to disk."""
+    with open(SESSIONS_INDEX_FILE, "w") as f:
+        json.dump(index, f, indent=2)
+
+
+def _get_session_file(session_id):
+    """Get the file path for a session's data."""
+    return os.path.join(SESSIONS_DIR, f"{session_id}.json")
+
+
+def _load_session_record(session_id):
+    """Load a session record from disk."""
+    filepath = _get_session_file(session_id)
+    if os.path.exists(filepath):
+        with open(filepath, "r") as f:
+            return json.load(f)
+    return None
+
+
+def _save_session_record(session_id, record):
+    """Save a session record to disk."""
+    filepath = _get_session_file(session_id)
+    with open(filepath, "w") as f:
+        json.dump(record, f, indent=2)
 
 pdf_processor = PDFProcessor()
 vocal_bridge = VocalBridgeClient(os.getenv("VOCAL_BRIDGE_API_KEY", ""))
@@ -101,12 +166,30 @@ def _build_pdf_context(pdf_data, filename, outline):
         "- ONLY use MCP tools when the student asks about a specific reference paper (e.g. 'tell me about reference 6') and wants a summary of that external paper. Never use MCP for anything else.",
         f"- Only use page numbers 1-{total_pages} from the '--- Page N ---' markers above. Never guess pages.",
         "",
-        "FIRST MESSAGE: Start teaching immediately. Do NOT use any tools or MCP calls. Highlight the title, summarize the paper (2-3 sentences) from the abstract above, cover key points, then ask where to dive in.",
+        "FIRST MESSAGE: Start teaching immediately. Do NOT use any tools or MCP calls. Highlight the title and first line of the abstract, summarize the paper (2-3 sentences), then keep going — dive straight into the Introduction.",
         "",
-        "TEACHING: Navigate to the page first (navigate_to_page), then highlight the heading, give a 1-2 sentence overview, then explain in 3-4 sentences with details. Highlight key terms as you go. Give 4-6 sentences per response, then let the student absorb.",
+        "PACING — THIS IS THE MOST IMPORTANT RULE:",
+        "- You are a read-aloud tutor. Keep talking. Never stop and wait.",
+        "- NEVER end a sentence with anything that signals you are done and waiting.",
+        "- BANNED phrases — never end a turn with these or anything like them: 'Does that make sense?', 'Shall we continue?', 'Ready to dive deeper?', 'Let's move on.', 'Let's continue.', 'Let's keep going.', 'Let's move forward.', 'Let's proceed.', 'Let's go on.', 'Now let's...', 'Would you like to...', 'Let me know if...', 'Any questions?'",
+        "- These phrases are turn-enders even when they sound like transitions. They are all banned.",
+        "- Instead: when you finish explaining one thing, just start explaining the next thing directly. No sign-off, no handoff.",
+        "- The student speaks ONLY to interrupt. If they have not spoken, you have the floor. Keep going.",
+        "- When the student does interrupt: answer their question, then immediately pick up where you left off.",
+        "",
+        "HIGHLIGHTING — THIS IS THE CORE FEATURE, do it generously and SILENTLY:",
+        "- NEVER say 'let me highlight', 'now let's highlight', 'I'll highlight', or ANY phrase about highlighting. Just emit the highlight_text action — the student sees it happen automatically.",
+        "- Before explaining ANY concept, claim, or result, call highlight_text with the EXACT sentence or phrase from the PDF you are about to explain.",
+        "- Highlight FULL SENTENCES or LONG PHRASES (15-50 words) — never single keywords.",
+        "- Each speaking turn must include 2-5 highlight_text calls — one per idea you explain.",
+        "- Sequence: [highlight_text action] → speak about that passage → [highlight_text action] → speak about it → repeat.",
+        "- Think of it as a highlighter pen moving silently through the paper as you read aloud.",
+        "- When discussing a figure, also send highlight_region using the bbox from the [FIGURE] markers.",
+        "",
+        "TEACHING: For each section — navigate_to_page, highlight the section heading, then walk through it: highlight a sentence, explain it in plain language, highlight the next, explain it, and so on. Keep going through the paper without stopping.",
         "",
         "ACTIONS (send via client_action):",
-        '- highlight_text: {"text": "...", "color": "yellow", "page": N} — highlight text (auto-navigates to page). Do this frequently and silently.',
+        '- highlight_text: {"text": "...", "color": "yellow", "page": N} — use exact text from the PDF. Send this BEFORE speaking about that passage. Send multiple per turn.',
         '- highlight_region: {"page": N, "x": X, "y": Y, "w": W, "h": H, "color": "blue"} — highlight a figure using bbox from [FIGURE] markers above.',
         '- navigate_to_page: {"page": N} — ALWAYS send this before discussing content on a different page. If the student says "go to page 2" or you start explaining something on page 2, send this FIRST.',
         '- find_citation: {"reference": "6"} — highlight a reference on screen. Read the reference text yourself from the PDF above first; never ask the student what it says.',
@@ -269,23 +352,72 @@ def upload_pdf():
         file.save(filepath)
         pdf_data = pdf_processor.extract_structure(filepath)
         outline = pdf_processor.build_outline(pdf_data)
+        title = None
+
+        # Try 1: first section heading from outline
+        if outline and outline.get("sections") and len(outline["sections"]) > 0:
+            heading = outline["sections"][0].get("heading", "")
+            if heading and 5 < len(heading) < 120:
+                title = heading
+
+        # Try 2: largest font text block on page 1
+        if not title and pdf_data and pdf_data.get("pages"):
+            blocks = pdf_data["pages"][0].get("blocks", [])
+            if blocks:
+                largest = max(blocks, key=lambda b: b.get("size", 0), default=None)
+                if largest and largest.get("text"):
+                    candidate = largest["text"].strip()
+                    if 10 < len(candidate) < 150:
+                        title = candidate
+
+        # Try 3: clean filename
+        if not title:
+            title = (file.filename
+                     .replace(".pdf", "")
+                     .replace("-", " ")
+                     .replace("_", " ")
+                     .title())
+
+        total_pages = pdf_data.get("total_pages", 0)
         sessions[session_id] = {
             "filepath": filepath,
             "pdf_data": pdf_data,
             "outline": outline,
             "filename": file.filename,
+            "title": title,
             "current_page": 1,
             "transcript_summary": "",
             "concepts_discussed": [],
         }
+
+        # Register in sessions index so the library can find it
+        index = _load_sessions_index()
+        if not any(e.get("id") == session_id for e in index.get("sessions", [])):
+            index["sessions"].append({
+                "id": session_id,
+                "docId": session_id,
+                "title": title,
+                "filename": file.filename,
+                "startedAt": int(time.time() * 1000),
+                "totalPages": total_pages,
+            })
+            _save_sessions_index(index)
+
         return jsonify({
             "session_id": session_id,
             "filename": file.filename,
-            "total_pages": pdf_data["total_pages"],
+            "title": title,
+            "total_pages": total_pages,
             "outline": outline,
         })
     except Exception as e:
         return jsonify({"error": f"Failed to process PDF: {e}"}), 500
+
+
+@app.route("/api/documents/upload", methods=["POST"])
+def documents_upload():
+    """Alias for /api/upload-pdf — matches frontend expected path."""
+    return upload_pdf()
 
 
 @app.route("/api/pdf/<session_id>", methods=["GET"])
@@ -294,6 +426,27 @@ def serve_pdf(session_id):
     if not session:
         return jsonify({"error": "Session not found"}), 404
     return send_from_directory(UPLOAD_DIR, os.path.basename(session["filepath"]))
+
+
+@app.route("/api/thumbnail/<session_id>", methods=["GET"])
+def get_thumbnail(session_id):
+    """Return a JPEG thumbnail of page 1 of the uploaded PDF."""
+    filepath = os.path.join(UPLOAD_DIR, f"{session_id}.pdf")
+    if not os.path.exists(filepath):
+        return jsonify({"error": "Not found"}), 404
+    try:
+        doc = fitz.open(filepath)
+        page = doc[0]
+        mat = fitz.Matrix(0.6, 0.6)
+        pix = page.get_pixmap(matrix=mat)
+        img_bytes = pix.tobytes("jpeg")
+        doc.close()
+        response = make_response(img_bytes)
+        response.headers["Content-Type"] = "image/jpeg"
+        response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/paper-context/<session_id>", methods=["GET"])
@@ -423,6 +576,9 @@ def search_text():
 
 @app.route("/api/voice-token", methods=["GET", "POST"])
 def voice_token():
+    if not _require_auth():
+        return jsonify({"error": "Authentication required"}), 401
+
     if not os.getenv("VOCAL_BRIDGE_API_KEY"):
         return jsonify({"error": "Voice agent not configured (no API key)"}), 503
 
@@ -657,6 +813,515 @@ def quiz_context_endpoint(session_id):
         "context": session["quiz_context"],
         "quiz_active": True
     })
+
+
+# ---------------------------------------------------------------------------
+# Session Persistence Endpoints
+# ---------------------------------------------------------------------------
+
+@app.route("/api/sessions", methods=["POST"])
+def create_learning_session():
+    """Create a new learning session record."""
+    data = request.get_json()
+    if not data or not data.get("docId"):
+        return jsonify({"error": "docId is required"}), 400
+
+    session_id = str(uuid.uuid4())
+    # Use startedAt from client if provided (JS ms float), otherwise generate
+    started_at = data.get("startedAt") or (time.time() * 1000)
+    title = data.get("title") or data["docId"]
+
+    record = {
+        "id": session_id,
+        "docId": data["docId"],
+        "title": title,
+        "filename": data.get("filename", ""),
+        "totalPages": data.get("totalPages"),
+        "startedAt": started_at,
+        "endedAt": None,
+        "coverageMap": data.get("coverageMap", {}),
+        "transcript": data.get("transcript", []),
+        "annotations": data.get("annotations", []),
+        "quizResults": data.get("quizResults", []),
+    }
+
+    _save_session_record(session_id, record)
+
+    # Update index
+    index = _load_sessions_index()
+    index["sessions"].append({
+        "id": session_id,
+        "docId": data["docId"],
+        "title": title,
+        "filename": data.get("filename", ""),
+        "startedAt": started_at,
+    })
+    _save_sessions_index(index)
+
+    return jsonify(record), 201
+
+
+@app.route("/api/sessions/<session_id>", methods=["PATCH"])
+def update_learning_session(session_id):
+    """Update a learning session (append transcript, update coverage)."""
+    record = _load_session_record(session_id)
+    if not record:
+        # Auto-create a minimal record so coverage updates always land
+        record = {
+            "id": session_id,
+            "docId": session_id,
+            "startedAt": int(time.time() * 1000),
+            "endedAt": None,
+            "coverageMap": {},
+            "transcript": [],
+            "annotations": [],
+            "quizResults": [],
+        }
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    # Append transcript messages
+    if "transcript" in data:
+        for msg in data["transcript"]:
+            # Check if message already exists (by id)
+            existing_ids = {m.get("id") for m in record["transcript"]}
+            if msg.get("id") not in existing_ids:
+                record["transcript"].append(msg)
+
+    # Update coverage map (merge)
+    if "coverageMap" in data:
+        for section_id, coverage_data in data["coverageMap"].items():
+            record["coverageMap"][section_id] = coverage_data
+
+    # Append annotations
+    if "annotations" in data:
+        for ann in data["annotations"]:
+            existing_ids = {a.get("id") for a in record.get("annotations", [])}
+            if ann.get("id") not in existing_ids:
+                record["annotations"].append(ann)
+
+    # Append quiz results
+    if "quizResults" in data:
+        for qr in data["quizResults"]:
+            existing = False
+            for existing_qr in record.get("quizResults", []):
+                if existing_qr.get("question") == qr.get("question"):
+                    existing = True
+                    break
+            if not existing:
+                record["quizResults"].append(qr)
+
+    # Mark session as ended if endedAt provided
+    if "endedAt" in data:
+        record["endedAt"] = data["endedAt"]
+
+    # Incremental coverage update from a highlight_text event
+    if "coverageUpdate" in data:
+        update = data["coverageUpdate"]
+        page_key = str(update.get("page", "unknown"))
+
+        # Persist totalPages so the summary can use the real denominator
+        if update.get("totalPages") and not record.get("totalPages"):
+            record["totalPages"] = update["totalPages"]
+
+        if page_key not in record["coverageMap"]:
+            record["coverageMap"][page_key] = {"coverage": 0.1, "depth": 0.0}
+        else:
+            current = record["coverageMap"][page_key]["coverage"]
+            record["coverageMap"][page_key]["coverage"] = min(1.0, current + 0.1)
+
+    _save_session_record(session_id, record)
+    return jsonify(record)
+
+
+@app.route("/api/sessions", methods=["GET"])
+def list_learning_sessions():
+    """List sessions, optionally filtered by docId."""
+    doc_id = request.args.get("docId")
+    index = _load_sessions_index()
+
+    sessions_list = []
+    for session_meta in index["sessions"]:
+        if doc_id and session_meta.get("docId") != doc_id:
+            continue
+
+        # Load full record to get computed fields
+        record = _load_session_record(session_meta["id"])
+        if record:
+            # Compute coverage and depth from coverageMap
+            coverage_values = [v.get("coverage", 0) for v in record.get("coverageMap", {}).values()]
+            depth_values = [v.get("depth", 0) for v in record.get("coverageMap", {}).values()]
+
+            sessions_list.append({
+                "id": record["id"],
+                "docId": record["docId"],
+                "startedAt": record["startedAt"],
+                "endedAt": record.get("endedAt"),
+                "coverage": sum(coverage_values) / len(coverage_values) if coverage_values else 0,
+                "depth": sum(depth_values) / len(depth_values) if depth_values else 0,
+                "transcriptCount": len(record.get("transcript", [])),
+                "annotationCount": len(record.get("annotations", [])),
+            })
+
+    # Sort by startedAt descending (newest first)
+    sessions_list.sort(key=lambda x: x["startedAt"], reverse=True)
+
+    return jsonify({"sessions": sessions_list})
+
+
+@app.route("/api/sessions/<session_id>", methods=["GET"])
+def get_learning_session(session_id):
+    """Get full session detail with transcript and annotations."""
+    record = _load_session_record(session_id)
+    if not record:
+        return jsonify({"error": "Session not found"}), 404
+
+    return jsonify(record)
+
+
+@app.route("/api/sessions/<session_id>/summary", methods=["GET"])
+def get_session_summary(session_id):
+    """Get end-of-session summary with tutor's note."""
+    record = _load_session_record(session_id)
+    if not record:
+        return jsonify({
+            "sessionId": session_id,
+            "coverage_pct": 0,
+            "depth_score": 0.0,
+            "sectionsCovered": 0,
+            "questionsAsked": 0,
+            "quizScore": 0,
+            "durationMinutes": 0,
+            "note": "",
+        })
+
+    # Compute stats
+    coverage_map = record.get("coverageMap", {})
+    transcript = record.get("transcript", [])
+    quiz_results = record.get("quizResults", [])
+
+    sections_covered = len([s for s in coverage_map.values() if s.get("coverage", 0) > 0])
+    total_sections = record.get("totalPages") or len(coverage_map) or 1
+    coverage_pct = round(sections_covered / total_sections * 100)
+    depth_values = [v["depth"] for v in coverage_map.values() if v.get("coverage", 0) > 0]
+    depth_score = round(sum(depth_values) / len(depth_values), 1) if depth_values else 0.0
+    questions_asked = len([m for m in transcript if m.get("role") == "user" and "?" in m.get("text", "")])
+
+    correct_count = len([q for q in quiz_results if q.get("correct")])
+    total_quiz = len(quiz_results)
+    quiz_score = (correct_count / total_quiz * 100) if total_quiz > 0 else 0
+
+    started_at = record.get("startedAt", 0)
+    ended_at = record.get("endedAt") or (time.time() * 1000)
+    duration_minutes = int((ended_at - started_at) / 60000)
+
+    # Generate tutor's note based on session data
+    if quiz_score >= 80:
+        note = f"Excellent session! You covered {sections_covered} sections and demonstrated strong understanding with a {quiz_score:.0f}% quiz score. Your engagement was consistent throughout."
+    elif quiz_score >= 60:
+        note = f"Good progress today! You explored {sections_covered} sections. Consider revisiting the sections where quiz questions were challenging to solidify your understanding."
+    elif sections_covered > 0:
+        note = f"You made a start on {sections_covered} sections. I recommend spending more time on each section and testing your understanding with quizzes."
+    else:
+        note = "Welcome back! Let's dive into the material together. Start with the introduction and we'll build from there."
+
+    return jsonify({
+        "sessionId": session_id,
+        "coverage_pct": coverage_pct,
+        "depth_score": depth_score,
+        "sectionsCovered": sections_covered,
+        "questionsAsked": questions_asked,
+        "quizScore": round(quiz_score, 1),
+        "durationMinutes": duration_minutes,
+        "quizResults": quiz_results,
+        "coverageMap": coverage_map,
+        "note": note,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Document endpoints (aggregated view over sessions index)
+# ---------------------------------------------------------------------------
+
+def clean_filename(f):
+    return (f.replace('.pdf', '').replace('-', ' ')
+             .replace('_', ' ').title()) if f else 'Untitled'
+
+
+def ms_to_iso(ms):
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(
+        ms / 1000.0, tz=timezone.utc
+    ).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def _build_doc_object(doc_id, sessions_for_doc):
+    """Build a single document summary object from a list of index entries."""
+    most_recent = max(sessions_for_doc, key=lambda s: s.get('startedAt', 0))
+
+    title = most_recent.get('title') or clean_filename(
+        most_recent.get('filename', doc_id))
+    filename = most_recent.get('filename', '')
+    last_opened = ms_to_iso(most_recent['startedAt'])
+
+    # totalPages may not exist on old index entries — read from session JSON
+    total_pages = most_recent.get('totalPages', 0)
+
+    coverage_pct = 0
+    depth_score = 0.0
+    session_path = os.path.join(SESSIONS_DIR, most_recent['id'] + '.json')
+    try:
+        with open(session_path, 'r') as f:
+            session_data = json.load(f)
+        coverage_map = session_data.get('coverageMap', {})
+        if not total_pages:
+            total_pages = session_data.get('totalPages', 0)
+        if coverage_map:
+            total = total_pages or len(coverage_map) or 1
+            covered = sum(1 for v in coverage_map.values() if v.get('coverage', 0) > 0)
+            coverage_pct = round(covered / total * 100)
+            depth_values = [v['depth'] for v in coverage_map.values()
+                            if v.get('coverage', 0) > 0]
+            depth_score = round(sum(depth_values) / len(depth_values), 1) if depth_values else 0.0
+    except Exception:
+        pass
+
+    return {
+        'id': doc_id,
+        'title': title,
+        'filename': filename,
+        'totalPages': total_pages,
+        'currentPage': 1,
+        'lastOpened': last_opened,
+        'sessionCount': len(sessions_for_doc),
+        'progress': coverage_pct,
+        'depthScore': depth_score,
+        'thumbnailUrl': f'/api/thumbnail/{doc_id}',
+    }
+
+
+@app.route('/api/documents', methods=['GET'])
+def list_documents():
+    """List all documents aggregated from sessions index, grouped by docId."""
+    try:
+        index = _load_sessions_index()
+    except Exception:
+        return jsonify({'documents': []})
+
+    # Group by docId
+    by_doc = {}
+    for entry in index.get('sessions', []):
+        doc_id = entry.get('docId')
+        if not doc_id:
+            continue
+        by_doc.setdefault(doc_id, []).append(entry)
+
+    # Build document objects, sorted by most recent startedAt descending
+    docs = []
+    for doc_id, entries in by_doc.items():
+        try:
+            docs.append((
+                max(e.get('startedAt', 0) for e in entries),
+                _build_doc_object(doc_id, entries),
+            ))
+        except Exception:
+            continue
+
+    docs.sort(key=lambda x: x[0], reverse=True)
+    return jsonify({'documents': [d for _, d in docs]})
+
+
+@app.route('/api/documents/<doc_id>', methods=['GET'])
+def get_document(doc_id):
+    """Get a single document by docId."""
+    try:
+        index = _load_sessions_index()
+    except Exception:
+        return jsonify({'error': 'Document not found', 'docId': doc_id}), 404
+
+    entries = [e for e in index.get('sessions', []) if e.get('docId') == doc_id]
+    if not entries:
+        return jsonify({'error': 'Document not found', 'docId': doc_id}), 404
+
+    try:
+        doc = _build_doc_object(doc_id, entries)
+    except Exception:
+        return jsonify({'error': 'Document not found', 'docId': doc_id}), 404
+
+    return jsonify(doc)
+
+
+# ---------------------------------------------------------------------------
+# User Settings Endpoints
+# ---------------------------------------------------------------------------
+
+SETTINGS_FILE = os.path.join(SESSIONS_DIR, "user_settings.json")
+
+def _load_user_settings():
+    """Load user settings from disk."""
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_user_settings(settings):
+    """Save user settings to disk."""
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
+
+
+def _get_default_settings():
+    """Return default user settings."""
+    return {
+        "tutorVoice": "nova",
+        "speakingSpeed": 1.0,
+        "voiceActivation": True,
+        "quizFrequency": "occasionally",
+        "endOfSessionQuiz": True,
+        "quizFormat": "mixed",
+        "autoPauseOnTabSwitch": True,
+        "highlightColor": "yellow",
+        "fontSize": "medium",
+        "notificationsEnabled": True,
+        "emailDigest": "weekly",
+    }
+
+
+@app.route("/api/users/me/settings", methods=["GET"])
+def get_user_settings():
+    """Get user settings."""
+    settings = _load_user_settings()
+    defaults = _get_default_settings()
+
+    # Merge with defaults
+    merged = {**defaults, **settings}
+    return jsonify(merged)
+
+
+@app.route("/api/users/me/settings", methods=["PATCH"])
+def update_user_settings():
+    """Update user settings."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    settings = _load_user_settings()
+
+    # Update only provided fields
+    allowed_fields = {
+        "tutorVoice", "speakingSpeed", "voiceActivation",
+        "quizFrequency", "endOfSessionQuiz", "quizFormat",
+        "autoPauseOnTabSwitch", "highlightColor", "fontSize",
+        "notificationsEnabled", "emailDigest"
+    }
+
+    for key, value in data.items():
+        if key in allowed_fields:
+            settings[key] = value
+
+    _save_user_settings(settings)
+
+    # Return merged with defaults
+    defaults = _get_default_settings()
+    merged = {**defaults, **settings}
+    return jsonify(merged)
+
+
+# ---------------------------------------------------------------------------
+# Auth endpoints
+# ---------------------------------------------------------------------------
+
+@app.route("/api/auth/signup", methods=["POST"])
+def signup():
+    """Register a new anonymous user (lead capture after trial)."""
+    data = request.get_json()
+    if not data or not data.get("name") or not data.get("email"):
+        return jsonify({"error": "name and email are required"}), 400
+
+    user = {
+        "id": str(uuid.uuid4()),
+        "name": data["name"].strip(),
+        "email": data["email"].strip().lower(),
+        "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+    # Append to users file
+    users = []
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, "r") as f:
+                users = json.load(f)
+        except Exception:
+            users = []
+    users.append(user)
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f, indent=2)
+
+    return jsonify({"user": user}), 201
+
+
+@app.route("/api/auth/google", methods=["POST"])
+def google_signin():
+    """Exchange a Google ID token for a LearnAloud JWT."""
+    data = request.get_json()
+    if not data or not data.get("credential"):
+        return jsonify({"error": "credential is required"}), 400
+
+    if not GOOGLE_CLIENT_ID:
+        return jsonify({"error": "Google OAuth not configured on server"}), 503
+
+    try:
+        id_info = id_token.verify_oauth2_token(
+            data["credential"],
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+        )
+    except Exception as e:
+        return jsonify({"error": f"Invalid Google token: {e}"}), 401
+
+    google_id = id_info["sub"]
+    email = id_info.get("email", "")
+    name = id_info.get("name", email)
+    picture = id_info.get("picture", "")
+
+    # Load users, find existing record by google_id, or create new one
+    users = []
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, "r") as f:
+                users = json.load(f)
+        except Exception:
+            users = []
+
+    user = next((u for u in users if u.get("google_id") == google_id), None)
+    if user is None:
+        user = {
+            "id": str(uuid.uuid4()),
+            "google_id": google_id,
+            "name": name,
+            "email": email,
+            "picture": picture,
+            "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        users.append(user)
+        with open(USERS_FILE, "w") as f:
+            json.dump(users, f, indent=2)
+
+    payload = {
+        "user_id": user["id"],
+        "email": email,
+        "name": name,
+        "exp": time.time() + JWT_EXPIRY_HOURS * 3600,
+    }
+    token = pyjwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
+    return jsonify({"token": token, "user": user}), 200
 
 
 # ---------------------------------------------------------------------------
