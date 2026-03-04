@@ -183,6 +183,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
         this.showAuthGate = false;
         this.signupSubmitting = false;
         this.cdr.markForCheck();
+        (window as any).gtag?.('event', 'login', { method: 'Google' });
         if (this.sessionStarted) {
           // Trial expired: voice is already connected but paused — just resume
           if (this.isPaused) {
