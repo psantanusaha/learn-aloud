@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
 
 # Angular build goes here — Flask serves it as static files in production
-COPY --from=frontend /frontend/dist/browser /app/static/browser
+COPY --from=frontend /frontend/dist/browser/browser /app/static/browser
 
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
