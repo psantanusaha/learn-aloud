@@ -1,0 +1,145 @@
+/* ============================================================
+   BUTTON COMPONENT
+   Uses design tokens from :root (no hardcoded colors)
+   ============================================================ */
+
+.la-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-base) var(--ease-spring);
+  border: 1px solid transparent;
+  position: relative;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   SIZES
+   ============================================================ */
+.la-btn--sm {
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.8rem;
+}
+
+.la-btn--md {
+  padding: var(--space-3) var(--space-6);
+  font-size: 0.875rem;
+}
+
+.la-btn--lg {
+  padding: var(--space-4) var(--space-8);
+  font-size: 1rem;
+}
+
+/* ============================================================
+   VARIANTS
+   ============================================================ */
+
+/* Primary: Amber, pill-shaped, solid */
+.la-btn--primary {
+  background: var(--amber);
+  color: var(--ink);
+  border-color: var(--amber);
+  box-shadow: var(--shadow-amber);
+}
+
+.la-btn--primary:hover:not(:disabled) {
+  background: var(--amber-light);
+  border-color: var(--amber-light);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 40px rgba(232, 164, 39, 0.4);
+}
+
+.la-btn--primary:active:not(:disabled) {
+  transform: translateY(0) scale(1);
+}
+
+/* Ghost: Outline, pill-shaped */
+.la-btn--ghost {
+  background: transparent;
+  color: var(--white);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.la-btn--ghost:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.la-btn--ghost:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Danger: Red outline */
+.la-btn--danger {
+  background: rgba(232, 91, 91, 0.1);
+  color: var(--error);
+  border-color: rgba(232, 91, 91, 0.3);
+}
+
+.la-btn--danger:hover:not(:disabled) {
+  background: rgba(232, 91, 91, 0.2);
+  border-color: rgba(232, 91, 91, 0.5);
+}
+
+.la-btn--danger:active:not(:disabled) {
+  background: rgba(232, 91, 91, 0.3);
+}
+
+/* ============================================================
+   STATES
+   ============================================================ */
+.la-btn--disabled,
+.la-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.la-btn--loading {
+  cursor: wait;
+}
+
+/* ============================================================
+   CONTENT & SPINNER
+   ============================================================ */
+.la-btn__content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: opacity var(--duration-fast) var(--ease-smooth);
+}
+
+.la-btn__content--hidden {
+  opacity: 0;
+}
+
+.la-btn__spinner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================
+   FOCUS
+   ============================================================ */
+.la-btn:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}

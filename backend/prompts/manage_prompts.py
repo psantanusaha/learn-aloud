@@ -2,11 +2,16 @@
 """
 Prompt history manager for LearnAloud agent prompts.
 
+Workflow: when you update a prompt on the VocalBridge dashboard, snapshot it here
+so you can revert if needed. The dashboard is the live source of truth; this file
+is the version history.
+
 Usage:
   python manage_prompts.py list                       # list all agents and versions
-  python manage_prompts.py show <agent> [version]     # show prompt (default: current)
-  python manage_prompts.py add <agent> <note>         # add new version from stdin
-  python manage_prompts.py rollback <agent> <version> # set current_version to an older one
+  python manage_prompts.py current <agent>            # print the current prompt (copy to dashboard)
+  python manage_prompts.py show <agent> [version]     # show a specific version
+  python manage_prompts.py add <agent> <note>         # snapshot new prompt from stdin (paste from dashboard)
+  python manage_prompts.py rollback <agent> <version> # mark an older version as current (then paste it to dashboard)
   python manage_prompts.py diff <agent> <v1> <v2>     # diff two versions
 """
 
@@ -15,7 +20,7 @@ import sys
 import os
 from datetime import date
 
-HISTORY_FILE = os.path.join(os.path.dirname(__file__), "prompt_history.json")
+HISTORY_FILE = os.path.join(os.path.dirname(__file__), "vocalbridge_agent_system_prompt.json")
 
 
 def load():
@@ -39,6 +44,18 @@ def cmd_list(data):
             meta = info["versions"][v]
             marker = " <-- active" if v == current else ""
             print(f"    {v}  ({meta['date']})  {meta['note']}{marker}")
+
+
+def cmd_current(data, agent):
+    if agent not in data["agents"]:
+        print(f"Unknown agent: {agent}")
+        sys.exit(1)
+    info = data["agents"][agent]
+    version = info["current_version"]
+    meta = info["versions"][version]
+    print(f"--- {agent} {version} ({meta['date']}) — {meta['note']} ---")
+    print()
+    print(meta["prompt"])
 
 
 def cmd_show(data, agent, version=None):
@@ -127,6 +144,12 @@ def main():
 
     if cmd == "list":
         cmd_list(data)
+    elif cmd == "current":
+        agent = sys.argv[2] if len(sys.argv) > 2 else None
+        if not agent:
+            print("Usage: manage_prompts.py current <agent>")
+            sys.exit(1)
+        cmd_current(data, agent)
     elif cmd == "show":
         agent = sys.argv[2] if len(sys.argv) > 2 else None
         version = sys.argv[3] if len(sys.argv) > 3 else None

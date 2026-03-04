@@ -1,0 +1,20 @@
+<div [class]="containerClasses">
+  <div class="la-waveform__bars la-waveform__bars--left">
+    @for (bar of barArray; track bar) {
+      <div
+        class="la-waveform__bar"
+        [style.height.%]="getBarHeight(bar)"
+        [style.animation-delay]="animated ? getAnimationDelay(bar) : '0s'"
+      ></div>
+    }
+  </div>
+  <div class="la-waveform__bars la-waveform__bars--right">
+    @for (bar of barArray; track bar) {
+      <div
+        class="la-waveform__bar"
+        [style.height.%]="getBarHeight(bars - 1 - bar)"
+        [style.animation-delay]="animated ? getAnimationDelay(bars - 1 - bar) : '0s'"
+      ></div>
+    }
+  </div>
+</div>

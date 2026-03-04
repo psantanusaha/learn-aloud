@@ -241,7 +241,7 @@
           </div>
         } @else {
           @for (message of transcript; track trackByMessageId($index, message)) {
-            <div class="transcript-message" [class.message-user]="message.role === 'user'">
+            <div class="transcript-message" [class.message-user]="message.role === 'user'" [class.message-live]="!message.isFinal">
               <div class="message-header">
                 <span class="message-role">{{ message.role === 'user' ? 'You' : 'Tutor' }}</span>
                 <span class="message-time">{{ getRelativeTime(message.timestamp) }}</span>

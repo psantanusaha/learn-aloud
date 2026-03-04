@@ -1,0 +1,311 @@
+<div class="settings-container">
+  <!-- Header -->
+  <header class="settings-header">
+    <button class="back-btn" (click)="goBack()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      <span>Library</span>
+    </button>
+    <h1 class="header-title">Settings</h1>
+    @if (isSaving) {
+      <span class="save-indicator saving">Saving...</span>
+    } @else if (saveMessage) {
+      <span class="save-indicator saved">{{ saveMessage }}</span>
+    }
+  </header>
+
+  <div class="settings-layout">
+    <!-- Sidebar Navigation -->
+    <nav class="settings-nav">
+      <button
+        class="nav-item"
+        [class.active]="activeSection === 'profile'"
+        (click)="setSection('profile')"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        Profile
+      </button>
+      <button
+        class="nav-item"
+        [class.active]="activeSection === 'voice'"
+        (click)="setSection('voice')"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+        Voice & Learning
+      </button>
+      <button
+        class="nav-item"
+        [class.active]="activeSection === 'reading'"
+        (click)="setSection('reading')"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+        Reading
+      </button>
+      <button
+        class="nav-item"
+        [class.active]="activeSection === 'notifications'"
+        (click)="setSection('notifications')"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        Notifications
+      </button>
+      <button
+        class="nav-item"
+        [class.active]="activeSection === 'billing'"
+        (click)="setSection('billing')"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+          <line x1="1" y1="10" x2="23" y2="10"/>
+        </svg>
+        Billing
+      </button>
+    </nav>
+
+    <!-- Content Panel -->
+    <main class="settings-content">
+      @if (isLoading) {
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading settings...</p>
+        </div>
+      } @else {
+        <!-- Profile Section -->
+        @if (activeSection === 'profile') {
+          <section class="settings-section">
+            <h2 class="section-title">Profile</h2>
+            <p class="section-desc">Manage your account information.</p>
+            <div class="coming-soon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+              <p>Coming soon</p>
+            </div>
+          </section>
+        }
+
+        <!-- Voice & Learning Section -->
+        @if (activeSection === 'voice') {
+          <section class="settings-section">
+            <h2 class="section-title">Voice & Learning</h2>
+            <p class="section-desc">Customize your tutoring experience.</p>
+
+            <div class="settings-group">
+              <!-- Tutor Voice -->
+              <div class="setting-row">
+                <div class="setting-info">
+                  <label class="setting-label">Tutor Voice</label>
+                  <p class="setting-desc">Choose your preferred voice for the AI tutor.</p>
+                </div>
+                <select
+                  class="setting-select"
+                  [(ngModel)]="settings.tutorVoice"
+                  (ngModelChange)="onSettingChange()"
+                >
+                  @for (option of voiceOptions; track option.value) {
+                    <option [value]="option.value">{{ option.label }}</option>
+                  }
+                </select>
+              </div>
+
+              <!-- Speaking Speed -->
+              <div class="setting-row">
+                <div class="setting-info">
+                  <label class="setting-label">Speaking Speed</label>
+                  <p class="setting-desc">Adjust how fast the tutor speaks.</p>
+                </div>
+                <div class="speed-control">
+                  <input
+                    type="range"
+                    class="setting-slider"
+                    min="0.5"
+                    max="2"
+                    step="0.1"
+                    [(ngModel)]="settings.speakingSpeed"
+                    (ngModelChange)="onSettingChange()"
+                  />
+                  <span class="speed-value">{{ speedLabel }}</span>
+                </div>
+              </div>
+
+              <!-- Voice Activation -->
+              <div class="setting-row">
+                <div class="setting-info">
+                  <label class="setting-label">Voice Activation</label>
+                  <p class="setting-desc">Enable hands-free voice interaction.</p>
+                </div>
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="settings.voiceActivation"
+                    (ngModelChange)="onSettingChange()"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <h3 class="group-title">Quizzes</h3>
+
+              <!-- Quiz Frequency -->
+              <div class="setting-row">
+                <div class="setting-info">
+                  <label class="setting-label">Quiz Frequency</label>
+                  <p class="setting-desc">How often should the tutor quiz you?</p>
+                </div>
+                <div class="toggle-group">
+                  <button
+                    class="toggle-btn"
+                    [class.active]="settings.quizFrequency === 'never'"
+                    (click)="setQuizFrequency('never')"
+                  >Never</button>
+                  <button
+                    class="toggle-btn"
+                    [class.active]="settings.quizFrequency === 'occasionally'"
+                    (click)="setQuizFrequency('occasionally')"
+                  >Occasionally</button>
+                  <button
+                    class="toggle-btn"
+                    [class.active]="settings.quizFrequency === 'often'"
+                    (click)="setQuizFrequency('often')"
+                  >Often</button>
+                </div>
+              </div>
+
+              <!-- End of Session Quiz -->
+              <div class="setting-row">
+                <div class="setting-info">
+                  <label class="setting-label">End-of-Session Quiz</label>
+                  <p class="setting-desc">Take a quiz at the end of each session.</p>
+                </div>
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="settings.endOfSessionQuiz"
+                    (ngModelChange)="onSettingChange()"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <!-- Quiz Format -->
+              <div class="setting-row">
+                <div class="setting-info">
+                  <label class="setting-label">Quiz Format</label>
+                  <p class="setting-desc">Preferred type of quiz questions.</p>
+                </div>
+                <select
+                  class="setting-select"
+                  [(ngModel)]="settings.quizFormat"
+                  (ngModelChange)="onSettingChange()"
+                >
+                  @for (option of quizFormatOptions; track option.value) {
+                    <option [value]="option.value">{{ option.label }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <h3 class="group-title">Behavior</h3>
+
+              <!-- Auto Pause -->
+              <div class="setting-row">
+                <div class="setting-info">
+                  <label class="setting-label">Auto-Pause on Tab Switch</label>
+                  <p class="setting-desc">Pause the session when you switch to another tab.</p>
+                </div>
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="settings.autoPauseOnTabSwitch"
+                    (ngModelChange)="onSettingChange()"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <!-- Show Onboarding -->
+              <div class="setting-row">
+                <div class="setting-info">
+                  <label class="setting-label">Show intro card for new documents</label>
+                  <p class="setting-desc">Show the orientation card at the start of each new document session.</p>
+                </div>
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    [ngModel]="settings.showOnboarding"
+                    (click)="toggleOnboarding()"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </section>
+        }
+
+        <!-- Reading Section -->
+        @if (activeSection === 'reading') {
+          <section class="settings-section">
+            <h2 class="section-title">Reading</h2>
+            <p class="section-desc">Customize your reading experience.</p>
+            <div class="coming-soon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+              <p>Coming soon</p>
+            </div>
+          </section>
+        }
+
+        <!-- Notifications Section -->
+        @if (activeSection === 'notifications') {
+          <section class="settings-section">
+            <h2 class="section-title">Notifications</h2>
+            <p class="section-desc">Manage your notification preferences.</p>
+            <div class="coming-soon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+              <p>Coming soon</p>
+            </div>
+          </section>
+        }
+
+        <!-- Billing Section -->
+        @if (activeSection === 'billing') {
+          <section class="settings-section">
+            <h2 class="section-title">Billing</h2>
+            <p class="section-desc">Manage your subscription and payment methods.</p>
+            <div class="coming-soon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+              <p>Coming soon</p>
+            </div>
+          </section>
+        }
+      }
+    </main>
+  </div>
+</div>

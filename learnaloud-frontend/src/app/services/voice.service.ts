@@ -1,14 +1,15 @@
 import { Injectable } from '@angular/core';
-import {
-  Room,
-  RoomEvent,
-  Track,
-  RemoteTrackPublication,
-  RemoteParticipant,
-  DataPacket_Kind,
-  TranscriptionSegment,
-  Participant,
-} from 'livekit-client';
+
+// LiveKit types - imported dynamically to reduce bundle size
+type LiveKitModule = typeof import('livekit-client');
+type Room = import('livekit-client').Room;
+type RoomEvent = typeof import('livekit-client').RoomEvent;
+type Track = typeof import('livekit-client').Track;
+type RemoteTrackPublication = import('livekit-client').RemoteTrackPublication;
+type RemoteParticipant = import('livekit-client').RemoteParticipant;
+type DataPacket_Kind = import('livekit-client').DataPacket_Kind;
+type TranscriptionSegment = import('livekit-client').TranscriptionSegment;
+type Participant = import('livekit-client').Participant;
 
 export interface TranscriptEntry {
   sender: 'you' | 'agent';
@@ -26,10 +27,18 @@ export interface VoiceState {
 
 @Injectable({ providedIn: 'root' })
 export class VoiceService {
+  private lk: LiveKitModule | null = null;
   private room: Room | null = null;
   private onClientAction: ((action: any) => void) | null = null;
   private onTranscript: ((transcript: TranscriptEntry[]) => void) | null = null;
   private audioElements: HTMLElement[] = [];
+
+  private async loadLiveKit(): Promise<LiveKitModule> {
+    if (!this.lk) {
+      this.lk = await import('livekit-client');
+    }
+    return this.lk;
+  }
 
   // Debate mode state
   private authorRoom: Room | null = null;
@@ -47,6 +56,9 @@ export class VoiceService {
   micError = '';
 
   async connect(url: string, token: string): Promise<void> {
+    // Dynamically import LiveKit to reduce initial bundle size
+    const { Room, RoomEvent, Track, RemoteParticipant } = await this.loadLiveKit();
+
     if (this.room) {
       try {
         await this.room.disconnect(true);
@@ -64,7 +76,7 @@ export class VoiceService {
 
     this.room.on(
       RoomEvent.TrackSubscribed,
-      (track, _pub: RemoteTrackPublication, _participant: RemoteParticipant) => {
+      (track: any, _pub: any, _participant: any) => {
         if (track.kind === Track.Kind.Audio) {
           const el = track.attach();
           el.id = 'lk-agent-audio';
@@ -78,8 +90,8 @@ export class VoiceService {
 
     this.room.on(
       RoomEvent.TrackUnsubscribed,
-      (track) => {
-        track.detach().forEach((el) => {
+      (track: any) => {
+        track.detach().forEach((el: HTMLElement) => {
           const index = this.audioElements.indexOf(el);
           if (index > -1) {
             this.audioElements.splice(index, 1);
@@ -91,7 +103,7 @@ export class VoiceService {
 
     this.room.on(
       RoomEvent.DataReceived,
-      (payload: Uint8Array, participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) => {
+      (payload: Uint8Array, participant?: any, _kind?: any, topic?: string) => {
         const raw = new TextDecoder().decode(payload);
         console.log('[VoiceService] DataReceived topic:', topic, 'raw:', raw);
         if (topic !== 'client_actions') return;
@@ -113,7 +125,7 @@ export class VoiceService {
 
     this.room.on(
       RoomEvent.TranscriptionReceived,
-      (segments: TranscriptionSegment[], participant?: Participant) => {
+      (segments: any[], participant?: any) => {
         const isAgent = participant instanceof RemoteParticipant;
         const sender = isAgent ? 'agent' : 'you';
         for (const seg of segments) {
@@ -176,6 +188,9 @@ export class VoiceService {
     reviewerUrl: string,
     reviewerToken: string,
   ): Promise<void> {
+    // Dynamically import LiveKit
+    const { Room } = await this.loadLiveKit();
+
     // Clean up any existing connections
     await this.disconnect();
 
@@ -233,6 +248,9 @@ export class VoiceService {
     if (this.reviewerConnected || !this.pendingReviewerUrl) return;
     this.reviewerConnected = true;
 
+    // Dynamically import LiveKit (likely already loaded)
+    const { Room } = await this.loadLiveKit();
+
     console.log('[Voice] Connecting reviewer room...');
     this.reviewerRoom = new Room();
     this.setupRoomHandlers(this.reviewerRoom, 'reviewer', this.reviewerAudioElements);
@@ -271,11 +289,13 @@ export class VoiceService {
     role: 'author' | 'reviewer',
     audioElements: HTMLElement[],
   ): void {
+    // LiveKit should already be loaded by connect/connectDebate
+    const { RoomEvent, Track, RemoteParticipant } = this.lk!;
     const audioId = `lk-${role}-audio`;
 
     room.on(
       RoomEvent.TrackSubscribed,
-      (track, _pub: RemoteTrackPublication, _participant: RemoteParticipant) => {
+      (track: any, _pub: any, _participant: any) => {
         if (track.kind === Track.Kind.Audio) {
           const el = track.attach();
           el.id = audioId;
@@ -288,8 +308,8 @@ export class VoiceService {
 
     room.on(
       RoomEvent.TrackUnsubscribed,
-      (track) => {
-        track.detach().forEach((el) => {
+      (track: any) => {
+        track.detach().forEach((el: HTMLElement) => {
           const index = audioElements.indexOf(el);
           if (index > -1) {
             audioElements.splice(index, 1);
@@ -301,7 +321,7 @@ export class VoiceService {
 
     room.on(
       RoomEvent.DataReceived,
-      (payload: Uint8Array, participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) => {
+      (payload: Uint8Array, participant?: any, _kind?: any, topic?: string) => {
         const raw = new TextDecoder().decode(payload);
         console.log(`[VoiceService:${role}] DataReceived topic:`, topic, 'raw:', raw);
         if (topic !== 'client_actions') return;
@@ -325,7 +345,7 @@ export class VoiceService {
 
     room.on(
       RoomEvent.TranscriptionReceived,
-      (segments: TranscriptionSegment[], participant?: Participant) => {
+      (segments: any[], participant?: any) => {
         const isAgent = participant instanceof RemoteParticipant;
         const sender = isAgent ? 'agent' : 'you';
         for (const seg of segments) {

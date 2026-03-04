@@ -78,6 +78,10 @@ export class ApiService {
     return this.http.post(`${this.baseUrl}/auth/google`, { credential });
   }
 
+  getTrialToken(): Observable<any> {
+    return this.http.post(`${this.baseUrl}/auth/trial`, {});
+  }
+
   // ---- WebSocket (Socket.IO) ------------------------------------------------
 
   connectSocket(): void {

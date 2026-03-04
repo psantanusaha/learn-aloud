@@ -491,6 +491,19 @@
   margin: 0;
 }
 
+.message-live .message-text {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.message-live .message-text::after {
+  content: ' ▋';
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  50% { opacity: 0; }
+}
+
 .message-ref {
   display: inline-flex;
   align-items: center;

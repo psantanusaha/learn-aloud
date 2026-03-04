@@ -1,0 +1,179 @@
+<div class="library-container">
+
+  <!-- Header -->
+  <header class="library-header">
+    <a class="logo" routerLink="/">
+      <span class="logo-icon">📖</span>
+      <span class="logo-text">LearnAloud</span>
+    </a>
+  </header>
+
+  <!-- Loading State -->
+  @if (isLoading) {
+    <div class="loading-state">
+      <div class="loading-spinner"></div>
+      <p>Loading your library...</p>
+    </div>
+  }
+
+  <!-- STATE A: Empty Library -->
+  @if (isEmpty) {
+    <main class="library-empty">
+      <!-- Hero Dropzone -->
+      <div
+        class="dropzone dropzone-hero"
+        [class.dropzone-active]="isDragOver"
+        [class.dropzone-uploading]="isUploading"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+        (click)="triggerFileInput()"
+      >
+        <input
+          id="library-file-input"
+          type="file"
+          accept="application/pdf"
+          (change)="onFileSelect($event)"
+          hidden
+        />
+
+        @if (isUploading) {
+          <div class="upload-progress">
+            <div class="progress-ring">
+              <svg viewBox="0 0 36 36">
+                <circle class="progress-bg" cx="18" cy="18" r="16"/>
+                <circle
+                  class="progress-bar"
+                  cx="18" cy="18" r="16"
+                  [style.stroke-dashoffset]="100 - uploadProgress"
+                />
+              </svg>
+              <span class="progress-text">{{ uploadProgress }}%</span>
+            </div>
+            <p class="upload-status">Uploading your document...</p>
+          </div>
+        } @else {
+          <div class="dropzone-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <h2 class="dropzone-title">Drop your PDF here</h2>
+          <p class="dropzone-subtitle">or click to browse</p>
+          <div class="dropzone-meta">
+            <span>PDF</span>
+            <span class="meta-dot"></span>
+            <span>Up to 50 MB</span>
+          </div>
+          <la-button variant="primary" size="md">
+            Choose File
+          </la-button>
+          <div class="sample-divider">or</div>
+          <button class="sample-link" (click)="loadSamplePdf(); $event.stopPropagation()" [disabled]="isUploading">
+            Try a sample paper →
+          </button>
+          <p class="sample-hint">Attention Is All You Need — 15 pages</p>
+        }
+      </div>
+
+      <p class="empty-message">
+        Your library is empty — upload your first PDF to get started
+      </p>
+    </main>
+  }
+
+  <!-- STATE B: Library with Documents -->
+  @if (hasDocuments) {
+    <main class="library-content">
+      <!-- Greeting -->
+      <div class="greeting">
+        <h1 class="greeting-title">{{ greeting }}, {{ userName }}</h1>
+        <p class="greeting-subtitle">{{ greetingMessage }}</p>
+      </div>
+
+      <!-- Compact Dropzone -->
+      <div
+        class="dropzone dropzone-compact"
+        [class.dropzone-active]="isDragOver"
+        [class.dropzone-uploading]="isUploading"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+        (click)="triggerFileInput()"
+      >
+        <input
+          id="library-file-input"
+          type="file"
+          accept="application/pdf"
+          (change)="onFileSelect($event)"
+          hidden
+        />
+
+        @if (isUploading) {
+          <div class="compact-uploading">
+            <div class="mini-spinner"></div>
+            <span>Uploading {{ uploadProgress }}%</span>
+          </div>
+        } @else {
+          <div class="compact-content">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span>Drop PDF here or <strong>click to upload</strong></span>
+          </div>
+        }
+      </div>
+
+      <!-- Document Grid -->
+      <div class="document-grid">
+        @for (doc of documents; track trackByDocId($index, doc)) {
+          <article class="document-card" (click)="openDocument(doc)">
+            <!-- Thumbnail -->
+            <div class="card-thumbnail">
+              @if (doc.thumbnailUrl) {
+                <img [src]="doc.thumbnailUrl" [alt]="doc.title" />
+              } @else {
+                <div class="thumbnail-placeholder">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+              }
+            </div>
+
+            <!-- Card Body -->
+            <div class="card-body">
+              <h3 class="card-title">{{ doc.title || doc.filename }}</h3>
+              <p class="card-date">{{ formatDate(doc.lastOpened) }}</p>
+
+              <!-- Progress Bar -->
+              <div class="card-progress">
+                <div class="progress-track">
+                  <div class="progress-fill" [style.width.%]="doc.progress"></div>
+                </div>
+                <span class="progress-label">{{ doc.progress }}%</span>
+              </div>
+            </div>
+
+            <!-- Card Footer -->
+            <div class="card-footer" (click)="viewHistory(doc, $event)">
+              <span>{{ doc.sessionCount }} {{ doc.sessionCount === 1 ? 'session' : 'sessions' }}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </div>
+          </article>
+        }
+      </div>
+    </main>
+  }
+
+</div>

@@ -11,13 +11,11 @@ import {
   ChangeDetectorRef,
   OnInit,
 } from '@angular/core';
-import * as pdfjsLib from 'pdfjs-dist';
 import { ActionService } from '../../services/action.service'; // Added
 import { Action, HighlightTextPayload, HighlightRegionPayload, NavigateToPagePayload } from '../../actions';
 
-// Configure PDF.js worker.
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+// pdf.js is loaded dynamically in loadPdf() to reduce initial bundle size
+type PdfjsLib = typeof import('pdfjs-dist');
 
 @Component({
   selector: 'app-pdf-viewer',
@@ -41,14 +39,26 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnInit {
   private scale = 1.5;
   private pdfLoaded = false;
   private activeHighlights: { type: 'text' | 'region'; payload: any }[] = [];
+  private pdfjsLib: PdfjsLib | null = null;
 
   constructor(private cdr: ChangeDetectorRef, private actionService: ActionService) {}
+
+  private lastHighlightClearTime = 0;
 
   ngOnInit(): void {
     this.actionService.action$.subscribe(action => {
       if (action.type === 'HIGHLIGHT_TEXT') {
         const payload = action.payload as HighlightTextPayload;
-        if (!this.shouldHandleAction(payload.sessionId)) return;
+        const should = this.shouldHandleAction(payload.sessionId);
+        console.log('[PdfViewer] HIGHLIGHT_TEXT received, sessionId:', payload.sessionId, 'viewer sessionId:', this.sessionId, 'should handle:', should);
+        if (!should) return;
+        // Clear stale highlights if more than 30s have passed since last clear
+        // This prevents the whole page from filling up during a long session
+        const now = Date.now();
+        if (now - this.lastHighlightClearTime > 30000) {
+          this.clearPageHighlights();
+          this.lastHighlightClearTime = now;
+        }
         this.activeHighlights.push({ type: 'text', payload });
         this.highlightWithPageSearch(payload);
       } else if (action.type === 'HIGHLIGHT_REGION') {
@@ -155,8 +165,16 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnInit {
 
   private async loadPdf(): Promise<void> {
     try {
+      // Dynamically import pdf.js to reduce initial bundle size
+      if (!this.pdfjsLib) {
+        this.pdfjsLib = await import('pdfjs-dist');
+        // Configure PDF.js worker
+        this.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          `https://unpkg.com/pdfjs-dist@${this.pdfjsLib.version}/build/pdf.worker.min.mjs`;
+      }
+
       console.log('Loading PDF from:', this.pdfUrl);
-      const loadingTask = pdfjsLib.getDocument(this.pdfUrl);
+      const loadingTask = this.pdfjsLib.getDocument(this.pdfUrl);
       this.pdfDoc = await loadingTask.promise;
       this.totalPages = this.pdfDoc.numPages;
       this.currentPage = 1;
@@ -208,7 +226,7 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnInit {
     for (const item of textContent.items as any[]) {
       if (!item.str) continue;
 
-      const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      const tx = this.pdfjsLib!.Util.transform(viewport.transform, item.transform);
       const span = document.createElement('span');
       span.textContent = item.str;
       span.style.position = 'absolute';
@@ -316,12 +334,13 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnInit {
 
   private colorToRgba(color: string): string {
     const map: Record<string, string> = {
-      yellow: 'rgba(255, 235, 59, 0.4)',
-      green: 'rgba(76, 175, 80, 0.4)',
-      blue: 'rgba(33, 150, 243, 0.4)',
-      pink: 'rgba(233, 30, 99, 0.4)',
+      yellow: 'rgba(255, 213, 0, 0.30)',
+      amber:  'rgba(255, 213, 0, 0.30)',
+      green:  'rgba(61, 191, 130, 0.28)',
+      blue:   'rgba(33, 150, 243, 0.28)',
+      pink:   'rgba(233, 30, 99, 0.25)',
     };
-    return map[color] || 'rgba(255, 235, 59, 0.4)';
+    return map[color] || 'rgba(255, 213, 0, 0.30)';
   }
 
   private async highlightRegion(payload: HighlightRegionPayload): Promise<void> {
@@ -366,6 +385,17 @@ export class PdfViewerComponent implements AfterViewInit, OnChanges, OnInit {
   }
 
   // ---------- Highlight management -------------------------------------------
+
+  private clearPageHighlights(): void {
+    const textLayerDiv = this.textLayerRef?.nativeElement;
+    if (!textLayerDiv) return;
+    const spans = textLayerDiv.querySelectorAll('span') as NodeListOf<HTMLSpanElement>;
+    spans.forEach(span => {
+      span.style.backgroundColor = '';
+      span.style.transition = '';
+    });
+    this.activeHighlights = this.activeHighlights.filter(h => h.type === 'region');
+  }
 
   private applyHighlights(): void {
     for (const h of this.activeHighlights) {

@@ -278,6 +278,7 @@ export class App implements OnInit, OnDestroy {
     this.stopStateSyncing();
     this.api.disconnectSocket();
     this.voice.disconnect();
+    this.sessionService.stopProgressPolling();
   }
 
   onFileSelected(event: Event): void {
@@ -305,6 +306,7 @@ export class App implements OnInit, OnDestroy {
         this.sessionId = res.session_id;
         this.pdfUrl = this.api.getPdfUrl(res.session_id);
         this.uploadedFileName = res.filename;
+        this.sessionService.startProgressPolling(res.session_id);
 
         // Initialize paper stack
         this.paperStack = [{
@@ -1428,6 +1430,11 @@ export class App implements OnInit, OnDestroy {
         sessionId: action.payload.session_id || this.getActiveSessionId(),
       };
       this.actionService.dispatch({ type: 'HIGHLIGHT_TEXT', payload });
+      this.sessionService.sendCoverageUpdate(
+        this.getActiveSessionId(),
+        action.payload.page || 1,
+        action.payload.text
+      );
       this.activity.post({
         category: 'action',
         title: `Highlight: "${payload.text.substring(0, 50)}${payload.text.length > 50 ? '...' : ''}"`,

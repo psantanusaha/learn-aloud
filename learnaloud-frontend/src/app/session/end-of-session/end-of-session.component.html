@@ -1,0 +1,149 @@
+<div class="end-session-container">
+  <!-- Header -->
+  <header class="end-header">
+    <div class="header-icon">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    </div>
+    <h1 class="header-title">Session Complete</h1>
+    <p class="header-subtitle">Great work! Here's how you did.</p>
+  </header>
+
+  @if (isLoading) {
+    <div class="loading-state">
+      <div class="loading-spinner"></div>
+      <p>Loading summary...</p>
+    </div>
+  } @else if (error) {
+    <div class="error-state">
+      <p>{{ error }}</p>
+      <la-button variant="ghost" (click)="onBackToLibrary()">Back to Library</la-button>
+    </div>
+  } @else if (summary) {
+    <div class="summary-content">
+      <!-- Stat Cards -->
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="stat-icon sections">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </div>
+          <div class="stat-value">{{ summary.sectionsCovered }}</div>
+          <div class="stat-label">Sections Covered</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon questions">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div class="stat-value">{{ summary.questionsAsked }}</div>
+          <div class="stat-label">Questions Asked</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon quiz">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </div>
+          <div class="stat-value">{{ summary.quizScore | number:'1.0-0' }}%</div>
+          <div class="stat-label">Quiz Score</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon time">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <div class="stat-value">{{ formatDuration(summary.durationMinutes) }}</div>
+          <div class="stat-label">Time Spent</div>
+        </div>
+      </div>
+
+      <!-- Coverage Heatmap -->
+      <section class="section-block">
+        <h2 class="section-title">Coverage Map</h2>
+        @if (heatmapSections.length > 0) {
+          <la-heatmap [sections]="heatmapSections" variant="full"></la-heatmap>
+        } @else {
+          <p class="empty-message">No coverage data available</p>
+        }
+      </section>
+
+      <!-- Quiz Results -->
+      @if (summary.quizResults.length > 0) {
+        <section class="section-block">
+          <h2 class="section-title">
+            Quiz Results
+            <span class="score-badge">{{ correctCount }}/{{ totalQuestions }}</span>
+          </h2>
+          <div class="quiz-list">
+            @for (result of summary.quizResults; track trackByQuestion($index, result)) {
+              <div class="quiz-item" [class.correct]="result.correct" [class.wrong]="!result.correct">
+                <div class="quiz-icon">
+                  @if (result.correct) {
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  } @else {
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  }
+                </div>
+                <div class="quiz-content">
+                  <p class="quiz-question">{{ result.question }}</p>
+                  @if (!result.correct && result.revisited) {
+                    <p class="quiz-revisit">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="1 4 1 10 7 10"/>
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                      </svg>
+                      Revisited §{{ result.sectionId }} — covered again
+                    </p>
+                  }
+                </div>
+                <span class="section-chip">§{{ result.sectionId }}</span>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Tutor's Note -->
+      <section class="section-block tutor-note">
+        <h2 class="section-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Tutor's Note
+        </h2>
+        <p class="note-text">{{ summary.note }}</p>
+      </section>
+    </div>
+
+    <!-- CTAs -->
+    <div class="cta-footer">
+      <la-button variant="ghost" (click)="onBackToLibrary()">
+        Back to Library
+      </la-button>
+      <la-button variant="primary" (click)="onContinueSession()">
+        Continue Next Session
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </la-button>
+    </div>
+  }
+</div>

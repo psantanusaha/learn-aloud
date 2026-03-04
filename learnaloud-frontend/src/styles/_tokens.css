@@ -1,0 +1,72 @@
+/* ============================================================
+   LEARNALOUD DESIGN TOKENS
+   ============================================================
+   Import this file in component CSS when you need token values.
+   All values reference CSS custom properties defined in :root (styles.css).
+   ============================================================ */
+
+/* Re-export all tokens for component-level use */
+:host {
+  /* Brand Colors */
+  --la-ink: var(--ink);
+  --la-ink-80: var(--ink-80);
+  --la-ink-60: var(--ink-60);
+  --la-ink-40: var(--ink-40);
+  --la-mist: var(--mist);
+  --la-mist-80: var(--mist-80);
+  --la-mist-60: var(--mist-60);
+  --la-white: var(--white);
+
+  /* Accent */
+  --la-amber: var(--amber);
+  --la-amber-light: var(--amber-light);
+  --la-amber-dark: var(--amber-dark);
+  --la-teal: var(--teal);
+  --la-teal-light: var(--teal-light);
+  --la-teal-dark: var(--teal-dark);
+
+  /* Functional */
+  --la-success: var(--success);
+  --la-error: var(--error);
+  --la-wave: var(--wave);
+
+  /* Typography */
+  --la-font-display: var(--font-display);
+  --la-font-body: var(--font-body);
+
+  /* Spacing */
+  --la-space-1: var(--space-1);
+  --la-space-2: var(--space-2);
+  --la-space-3: var(--space-3);
+  --la-space-4: var(--space-4);
+  --la-space-5: var(--space-5);
+  --la-space-6: var(--space-6);
+  --la-space-8: var(--space-8);
+  --la-space-10: var(--space-10);
+  --la-space-12: var(--space-12);
+  --la-space-16: var(--space-16);
+  --la-space-20: var(--space-20);
+  --la-space-24: var(--space-24);
+
+  /* Radius */
+  --la-radius-sm: var(--radius-sm);
+  --la-radius-md: var(--radius-md);
+  --la-radius-lg: var(--radius-lg);
+  --la-radius-xl: var(--radius-xl);
+  --la-radius-pill: var(--radius-pill);
+
+  /* Shadows */
+  --la-shadow-sm: var(--shadow-sm);
+  --la-shadow-md: var(--shadow-md);
+  --la-shadow-lg: var(--shadow-lg);
+  --la-shadow-xl: var(--shadow-xl);
+  --la-shadow-amber: var(--shadow-amber);
+  --la-shadow-teal: var(--shadow-teal);
+
+  /* Transitions */
+  --la-ease-smooth: var(--ease-smooth);
+  --la-ease-spring: var(--ease-spring);
+  --la-duration-fast: var(--duration-fast);
+  --la-duration-base: var(--duration-base);
+  --la-duration-slow: var(--duration-slow);
+}

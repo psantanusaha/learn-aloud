@@ -28,6 +28,7 @@ export interface TranscriptMessage {
   text: string;
   page?: number;
   timestamp: number;
+  isFinal: boolean;
 }
 
 export interface ProgressData {
@@ -82,6 +83,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   signupSubmitting = false;
   signupError = '';
   private trialIntervalId: any = null;
+  private sessionStarted = false; // true once voice.connect() succeeds
 
   constructor(
     private router: Router,
@@ -140,6 +142,8 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   }
 
   private triggerAuthGate(): void {
+    // Clear expired trial token so interceptor stops sending it
+    localStorage.removeItem(this.TOKEN_KEY);
     if (!this.isPaused) {
       this.voice.togglePause().then(() => {
         this.isPaused = this.voice.isPaused;
@@ -178,14 +182,26 @@ export class SessionViewComponent implements OnInit, OnDestroy {
         localStorage.setItem(this.SIGNED_IN_KEY, JSON.stringify(res.user));
         this.showAuthGate = false;
         this.signupSubmitting = false;
-        if (this.isPaused) {
-          this.voice.togglePause().then(() => {
-            this.isPaused = this.voice.isPaused;
-            this.isMicEnabled = this.voice.isMicEnabled;
-            this.cdr.markForCheck();
-          });
-        }
         this.cdr.markForCheck();
+        if (this.sessionStarted) {
+          // Trial expired: voice is already connected but paused — just resume
+          if (this.isPaused) {
+            this.voice.togglePause().then(() => {
+              this.isPaused = this.voice.isPaused;
+              this.isMicEnabled = this.voice.isMicEnabled;
+              this.cdr.markForCheck();
+              // Nudge agent to resume speaking automatically
+              this.voice.publishData({
+                type: 'client_message',
+                action: 'text_input',
+                payload: { text: 'please continue' },
+              });
+            });
+          }
+        } else {
+          // No session yet (trial token fetch failed) — start fresh
+          this.startVoiceSession();
+        }
       },
       error: () => {
         this.signupError = 'Sign-in failed. Please try again.';
@@ -219,15 +235,33 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   private startVoiceSession(): void {
     if (!this.routeSessionId) return;
 
+    // If no token, fetch a short-lived trial JWT first, then retry
+    if (!localStorage.getItem(this.TOKEN_KEY)) {
+      this.api.getTrialToken().subscribe({
+        next: (res: any) => {
+          localStorage.setItem(this.TOKEN_KEY, res.token);
+          this.startVoiceSession();
+        },
+        error: () => {
+          // Trial token failed — show auth gate immediately
+          this.showAuthGate = true;
+          this.cdr.markForCheck();
+          setTimeout(() => this.renderGoogleButton(), 50);
+        },
+      });
+      return;
+    }
+
     this.api.getVoiceToken('student').subscribe({
       next: async (res: any) => {
         try {
           await this.voice.connect(res.livekit_url, res.token);
+          this.sessionStarted = true;
           this.isMicEnabled = this.voice.isMicEnabled;
           this.cdr.markForCheck();
 
-          // Start trial timer for unauthenticated users
-          if (!localStorage.getItem(this.TOKEN_KEY)) {
+          // Start 60-second trial timer for unauthenticated users
+          if (!localStorage.getItem(this.SIGNED_IN_KEY)) {
             this.startTrialTimer();
           }
 
@@ -249,7 +283,13 @@ export class SessionViewComponent implements OnInit, OnDestroy {
         }
       },
       error: (err: any) => {
-        console.error('[SessionView] Failed to get voice token:', err);
+        if (err.status === 401) {
+          // Stale or expired token — clear it and retry (fetches a fresh trial token)
+          localStorage.removeItem(this.TOKEN_KEY);
+          this.startVoiceSession();
+        } else {
+          console.error('[SessionView] Failed to get voice token:', err);
+        }
       },
     });
   }
@@ -301,14 +341,15 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       this.speakingState = 'ready';
     }
 
-    // Show only final, non-empty messages in the transcript panel
+    // Show all non-empty messages; non-final entries render as live captions
     this.transcript = entries
-      .filter((e) => e.isFinal && e.text.trim())
+      .filter((e) => e.text.trim())
       .map((e) => ({
         id: e.id,
         role: (e.sender === 'agent' ? 'tutor' : 'user') as 'tutor' | 'user',
         text: e.text,
         timestamp: Date.now(),
+        isFinal: e.isFinal,
       }));
   }
 

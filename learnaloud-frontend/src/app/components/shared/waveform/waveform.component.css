@@ -1,0 +1,88 @@
+/* ============================================================
+   WAVEFORM COMPONENT
+   Dual waveform visualization using design tokens
+   ============================================================ */
+
+.la-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  height: 48px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* ============================================================
+   COLOR VARIANTS
+   ============================================================ */
+.la-waveform--amber {
+  background: rgba(232, 164, 39, 0.05);
+  border: 1px solid rgba(232, 164, 39, 0.15);
+}
+
+.la-waveform--amber .la-waveform__bar {
+  background: var(--amber);
+}
+
+.la-waveform--green {
+  background: rgba(43, 189, 170, 0.05);
+  border: 1px solid rgba(43, 189, 170, 0.15);
+}
+
+.la-waveform--green .la-waveform__bar {
+  background: var(--teal);
+}
+
+/* ============================================================
+   BARS CONTAINER
+   ============================================================ */
+.la-waveform__bars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 100%;
+}
+
+.la-waveform__bars--left {
+  flex-direction: row;
+}
+
+.la-waveform__bars--right {
+  flex-direction: row;
+}
+
+/* ============================================================
+   INDIVIDUAL BARS
+   ============================================================ */
+.la-waveform__bar {
+  width: 3px;
+  min-height: 15%;
+  border-radius: 2px;
+  transition: height var(--duration-fast) var(--ease-smooth);
+}
+
+/* ============================================================
+   ANIMATION (CSS keyframes only)
+   ============================================================ */
+.la-waveform--animated .la-waveform__bar {
+  animation: waveform-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes waveform-pulse {
+  0% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0.3);
+  }
+}
+
+/* ============================================================
+   STATIC STATE (not animated)
+   ============================================================ */
+.la-waveform:not(.la-waveform--animated) .la-waveform__bar {
+  animation: none;
+  opacity: 0.6;
+}

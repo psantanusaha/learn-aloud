@@ -1,27 +1,37 @@
-FROM python:3.12-slim
+# ── Stage 1: Build Angular frontend ──────────────────────────────────────────
+FROM node:20-alpine AS frontend
+WORKDIR /frontend
+COPY learnaloud-frontend/package*.json ./
+RUN npm ci --prefer-offline
+COPY learnaloud-frontend/ ./
+RUN npm run build --configuration production
 
+# ── Stage 2: Python backend + static files ────────────────────────────────────
+FROM python:3.12-slim
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
+RUN apt-get update && apt-get install -y --no-install-recommends gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy backend requirements
-COPY backend/requirements.txt .
-
-# Install Python dependencies
+COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
-COPY backend/ .
+COPY backend/ ./
 
-# Set environment variables
+# Angular build goes here — Flask serves it as static files in production
+COPY --from=frontend /frontend/dist/browser /app/static/browser
+
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
+ENV FRONTEND_BUILD_DIR=/app/static/browser
+ENV PORT=8080
 
-# Expose port
-EXPOSE 5000
+EXPOSE 8080
 
-# Run with Gunicorn + eventlet for Socket.IO support
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--worker-class", "eventlet", "--workers", "1", "app:app"]
+CMD exec gunicorn \
+    --bind 0.0.0.0:$PORT \
+    --worker-class eventlet \
+    --workers 1 \
+    --timeout 300 \
+    --keep-alive 65 \
+    app:app

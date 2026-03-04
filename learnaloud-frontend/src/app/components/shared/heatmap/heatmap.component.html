@@ -1,0 +1,49 @@
+<!-- Strip variant: 12-segment compact bar -->
+@if (isStrip) {
+  <div class="heatmap-strip">
+    @for (value of stripSegments; track $index) {
+      <div
+        class="strip-segment"
+        [style.background]="getSegmentColor(value)"
+        [title]="value + '% coverage'"
+      ></div>
+    }
+  </div>
+}
+
+<!-- Full variant: per-section labeled bar chart -->
+@if (isFull) {
+  <div class="heatmap-full">
+    @for (section of sections; track trackBySectionId($index, section)) {
+      <div class="section-row">
+        <div class="section-label" [title]="section.label || section.id">
+          {{ section.label || section.id }}
+        </div>
+        <div class="section-bars">
+          <div class="bar-group">
+            <div class="bar-label">Coverage</div>
+            <div class="bar-track">
+              <div
+                class="bar-fill coverage-fill"
+                [style.width.%]="section.coverage"
+                [style.background]="getSegmentColor(section.coverage)"
+              ></div>
+            </div>
+            <div class="bar-value">{{ section.coverage }}%</div>
+          </div>
+          <div class="bar-group">
+            <div class="bar-label">Depth</div>
+            <div class="bar-track">
+              <div
+                class="bar-fill depth-fill"
+                [style.width.%]="section.depth"
+                [style.background]="getDepthColor(section.depth)"
+              ></div>
+            </div>
+            <div class="bar-value">{{ section.depth }}%</div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}

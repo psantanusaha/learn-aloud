@@ -1266,6 +1266,17 @@ def signup():
     return jsonify({"user": user}), 201
 
 
+@app.route("/api/auth/trial", methods=["POST"])
+def trial_token():
+    """Issue a short-lived anonymous JWT for the 60-second free trial."""
+    payload = {
+        "trial": True,
+        "exp": time.time() + 90,  # 90 s — covers 60 s trial + buffer
+    }
+    token = pyjwt.encode(payload, JWT_SECRET, algorithm="HS256")
+    return jsonify({"token": token}), 200
+
+
 @app.route("/api/auth/google", methods=["POST"])
 def google_signin():
     """Exchange a Google ID token for a LearnAloud JWT."""
@@ -1375,7 +1386,10 @@ def handle_disconnect():
 # ----------------------------------------------------------------------------
 
 if IS_PRODUCTION:
-    FRONTEND_BUILD_DIR = os.path.join(os.path.dirname(__file__), "..", "learnaloud-frontend", "dist", "browser")
+    FRONTEND_BUILD_DIR = os.environ.get(
+        'FRONTEND_BUILD_DIR',
+        os.path.join(os.path.dirname(__file__), '..', 'learnaloud-frontend', 'dist', 'browser')
+    )
     
     @app.route("/")
     def serve_frontend():

@@ -1,0 +1,214 @@
+<div class="history-container">
+  <!-- Header -->
+  <header class="history-header">
+    <button class="back-btn" (click)="goBack()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      <span>Library</span>
+    </button>
+    <h1 class="header-title">Session History</h1>
+  </header>
+
+  <div class="history-content">
+    <!-- Sidebar: Session List -->
+    <aside class="sessions-sidebar">
+      <h2 class="sidebar-title">Sessions</h2>
+
+      @if (isLoadingSessions) {
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading sessions...</p>
+        </div>
+      } @else if (sessions.length === 0) {
+        <div class="empty-state">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          <p>No sessions yet</p>
+        </div>
+      } @else {
+        <div class="session-list">
+          @for (session of sessions; track trackBySessionId($index, session)) {
+            <div
+              class="session-card"
+              [class.selected]="selectedSessionId === session.id"
+              (click)="selectSession(session.id)"
+            >
+              <div class="card-header">
+                <span class="card-date">{{ formatDate(session.startedAt) }}</span>
+                <span class="card-duration">{{ formatDuration(session.startedAt, session.endedAt) }}</span>
+              </div>
+
+              <div class="card-metrics">
+                <div class="metric">
+                  <span class="metric-value">{{ session.coverage | number:'1.0-0' }}%</span>
+                  <span class="metric-label">Coverage</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-value">{{ session.depth | number:'1.0-0' }}</span>
+                  <span class="metric-label">Depth</span>
+                </div>
+              </div>
+
+              <!-- Mini Heatmap Strip -->
+              <la-heatmap
+                [sections]="getStripSections(session)"
+                variant="strip"
+              ></la-heatmap>
+
+              @if (isFirstSession($index)) {
+                <div class="first-session-badge">First session ✦</div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </aside>
+
+    <!-- Detail Panel -->
+    <main class="detail-panel">
+      @if (isLoadingDetail) {
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading session...</p>
+        </div>
+      } @else if (!selectedSession) {
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <p>Select a session to view details</p>
+        </div>
+      } @else {
+        <!-- Session Header -->
+        <div class="detail-header">
+          <div class="detail-meta">
+            <h2 class="detail-title">{{ formatDate(selectedSession.startedAt) }} at {{ formatTime(selectedSession.startedAt) }}</h2>
+            <p class="detail-subtitle">
+              Duration: {{ formatDuration(selectedSession.startedAt, selectedSession.endedAt) }}
+              &middot;
+              {{ selectedSession.transcript.length }} messages
+              &middot;
+              {{ selectedSession.annotations.length }} notes
+            </p>
+          </div>
+        </div>
+
+        <!-- First Session Prompt -->
+        @if (sessions.length === 1) {
+          <div class="first-session-prompt">
+            <span class="prompt-icon">✦</span>
+            <div class="prompt-text">
+              <strong>Congratulations on your first session!</strong>
+              <span>Keep learning to build your session history and track your progress.</span>
+            </div>
+          </div>
+        }
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button
+            class="tab"
+            [class.active]="activeTab === 'transcript'"
+            (click)="setActiveTab('transcript')"
+          >
+            Transcript
+          </button>
+          <button
+            class="tab"
+            [class.active]="activeTab === 'annotations'"
+            (click)="setActiveTab('annotations')"
+          >
+            Annotations
+          </button>
+          <button
+            class="tab"
+            [class.active]="activeTab === 'coverage'"
+            (click)="setActiveTab('coverage')"
+          >
+            Coverage Map
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+          <!-- Transcript Tab -->
+          @if (activeTab === 'transcript') {
+            <div class="transcript-list">
+              @if (selectedSession.transcript.length === 0) {
+                <div class="empty-tab">
+                  <p>No transcript messages</p>
+                </div>
+              } @else {
+                @for (msg of selectedSession.transcript; track trackByMessageId($index, msg)) {
+                  <div class="transcript-message" [class.tutor]="msg.role === 'tutor'" [class.user]="msg.role === 'user'">
+                    <div class="message-header">
+                      <span class="message-role">{{ msg.role === 'tutor' ? 'Tutor' : 'You' }}</span>
+                      @if (msg.sectionRef) {
+                        <span class="section-chip">{{ msg.sectionRef }}</span>
+                      }
+                      <span class="message-time">{{ formatRelativeTime(msg.timestamp) }}</span>
+                    </div>
+                    <p class="message-text">{{ msg.text }}</p>
+                  </div>
+                }
+              }
+            </div>
+          }
+
+          <!-- Annotations Tab -->
+          @if (activeTab === 'annotations') {
+            <div class="annotations-list">
+              @if (selectedSession.annotations.length === 0) {
+                <div class="empty-tab">
+                  <p>No annotations saved</p>
+                </div>
+              } @else {
+                @for (ann of selectedSession.annotations; track trackByAnnotationId($index, ann)) {
+                  <div class="annotation-item">
+                    <div class="annotation-header">
+                      <span class="section-chip">{{ ann.sectionId }}</span>
+                      <span class="annotation-date">{{ formatRelativeTime(ann.createdAt) }}</span>
+                    </div>
+                    <p class="annotation-text">{{ ann.text }}</p>
+                  </div>
+                }
+              }
+            </div>
+          }
+
+          <!-- Coverage Map Tab -->
+          @if (activeTab === 'coverage') {
+            <div class="coverage-panel">
+              @if (getHeatmapSections().length === 0) {
+                <div class="empty-tab">
+                  <p>No coverage data available</p>
+                </div>
+              } @else {
+                <la-heatmap
+                  [sections]="getHeatmapSections()"
+                  variant="full"
+                ></la-heatmap>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Footer -->
+        <div class="detail-footer">
+          <la-button variant="primary" (click)="resumeSession()">
+            Resume session
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </la-button>
+        </div>
+      }
+    </main>
+  </div>
+</div>
