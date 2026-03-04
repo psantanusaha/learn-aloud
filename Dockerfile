@@ -4,7 +4,7 @@ WORKDIR /frontend
 COPY learnaloud-frontend/package*.json ./
 RUN npm ci --prefer-offline
 COPY learnaloud-frontend/ ./
-RUN npm run build --configuration production
+RUN npm run build -- --configuration production
 
 # ── Stage 2: Python backend + static files ────────────────────────────────────
 FROM python:3.12-slim
