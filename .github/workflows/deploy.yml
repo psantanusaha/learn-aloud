@@ -49,4 +49,4 @@ jobs:
             --min-instances 0 \
             --max-instances 1 \
             --timeout 300 \
-            --set-env-vars "FLASK_ENV=production,FRONTEND_BUILD_DIR=/app/static/browser"
+            --set-env-vars "FLASK_ENV=production,FRONTEND_BUILD_DIR=/app/static/browser,VOCAL_BRIDGE_API_KEY=${{ secrets.VOCAL_BRIDGE_API_KEY }},GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }},JWT_SECRET=${{ secrets.JWT_SECRET }}"
