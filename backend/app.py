@@ -235,11 +235,10 @@ def _save_session_record(session_id, record):
 
 def _gcs_save_session(session_id, session_dict, local_pdf_path):
     """Upload PDF file + parsed data blob to GCS. Runs in a background thread."""
-    bucket = _get_gcs_bucket()
-    if not bucket:
-        return
-
     def _upload():
+        bucket = _get_gcs_bucket()
+        if not bucket:
+            return
         try:
             # PDF file
             pdf_blob = bucket.blob(f"pdfs/{session_id}.pdf")
@@ -657,27 +656,23 @@ def documents_upload():
 def serve_pdf(session_id):
     local_path = os.path.join(UPLOAD_DIR, f"{session_id}.pdf")
     if not os.path.exists(local_path):
-        bucket = _get_gcs_bucket()
-        if True:
-            try:
-                import eventlet.tpool
-                def _download():
-                    bucket = _get_gcs_bucket()
-                    if not bucket:
-                        return False
-                    blob = bucket.blob(f"pdfs/{session_id}.pdf")
-                    if not blob.exists():
-                        return False
-                    os.makedirs(UPLOAD_DIR, exist_ok=True)
-                    blob.download_to_filename(local_path)
-                    return True
-                found = eventlet.tpool.execute(_download)
-                if not found:
-                    return jsonify({"error": "Session not found"}), 404
-            except Exception as e:
-                return jsonify({"error": f"Could not load PDF: {e}"}), 500
-        else:
-            return jsonify({"error": "Session not found"}), 404
+        try:
+            import eventlet.tpool
+            def _download():
+                bucket = _get_gcs_bucket()
+                if not bucket:
+                    return False
+                blob = bucket.blob(f"pdfs/{session_id}.pdf")
+                if not blob.exists():
+                    return False
+                os.makedirs(UPLOAD_DIR, exist_ok=True)
+                blob.download_to_filename(local_path)
+                return True
+            found = eventlet.tpool.execute(_download)
+            if not found:
+                return jsonify({"error": "Session not found"}), 404
+        except Exception as e:
+            return jsonify({"error": f"Could not load PDF: {e}"}), 500
     return send_from_directory(UPLOAD_DIR, f"{session_id}.pdf")
 
 
