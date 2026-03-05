@@ -1,173 +1,228 @@
-# LearnAloud - Voice-Synchronized PDF Teaching Assistant
+# LearnAloud
 
-A proof-of-concept application demonstrating synchronized voice teaching with PDF annotations. An AI tutor highlights text in a PDF in real-time, simulating voice-synchronized visual teaching.
+**AI voice tutor that reads academic papers aloud with real-time PDF highlighting.**
 
-## Prerequisites
+Upload a PDF, and an AI tutor reads it to you — highlighting the exact passage being explained, navigating pages, and adapting to your questions in real time. Built for deep reading of research papers.
 
-Before you begin, ensure you have the following installed:
+🏆 **1st place — DeepLearning.AI Vocal Bridge Hackathon**
 
-- [Python](https://www.python.org/downloads/) (version 3.10 or higher)
-- [Node.js](https://nodejs.org/en/download/) (version 18 or higher)
-- [uv](https://github.com/astral-sh/uv) (for the ArXiv MCP server)
+**Live app:** https://learnaloud-6rego5ucxa-uc.a.run.app
 
-## Getting Started
+---
 
-1.  **Clone the repository:**
+## What it does
 
-    ```bash
-    git clone https://github.com/psantanusaha/learn-aloud.git
-    cd learn-aloud
-    ```
+- **Voice-synchronized highlighting** — tutor highlights the exact sentence being explained as it speaks
+- **Continuous read-aloud** — tutor reads the full paper without pausing, student can interrupt any time
+- **Push-to-talk** — mic auto-mutes while tutor speaks to prevent echo; hold button to interrupt
+- **Quiz on demand** — say "Quiz me" at any point; depth score tracks how well you're engaging
+- **Text chat** — type questions if you can't speak
+- **Coverage + Depth tracking** — topbar shows % of document covered and engagement depth score (0–5)
+- **Document library** — upload and revisit multiple papers
+- **Google Sign-In** — 60-second free trial, then Google OAuth for continued access
+- **Usage analytics** — Firestore logs every sign-in and PDF upload
 
-2.  **Set up environment variables:**
+---
 
-    *   **Backend:** Create a `.env` file in the `backend` directory and add the following:
+## Tech stack
 
-        ```
-        VOCAL_BRIDGE_API_KEY=<your-vocal-bridge-api-key>
-        ```
+| Layer | Technology |
+|---|---|
+| Frontend | Angular 21, standalone components |
+| Voice / realtime | LiveKit WebRTC (via VocalBridge AI) |
+| PDF rendering | pdf.js (dynamic import) |
+| Backend | Python 3.12, Flask, eventlet |
+| Auth | Google OAuth 2.0 + HS256 JWT |
+| Analytics | Google Analytics 4 + Google Cloud Firestore |
+| Deployment | Google Cloud Run (single container) |
+| CI/CD | GitHub Actions → Artifact Registry → Cloud Run |
 
-    *   **ArXiv MCP:** Create a `.env` file in the `arxiv-mcp` directory:
+---
 
-        ```
-        TRANSPORT=sse
-        HOST=0.0.0.0
-        PORT=8050
-        ```
+## Project structure
 
-## Easy Installation
-
-You can use the `setup.sh` script to install all the dependencies for the backend, frontend, and ArXiv MCP server.
-
-```bash
-chmod +x setup.sh
-./setup.sh
+```
+learn-aloud/
+├── backend/                  # Flask API
+│   ├── app.py                # All API routes, auth, Firestore logging
+│   ├── pdf_processor.py      # PyMuPDF text + figure extraction
+│   ├── vocal_bridge.py       # VocalBridge API client (LiveKit tokens)
+│   ├── agents/               # Librarian, Navigator, QuizMaster agents
+│   ├── prompts/              # Agent system prompt versions + manage_prompts.py
+│   ├── session_data/         # Runtime session index + users.json
+│   └── requirements.txt
+├── learnaloud-frontend/      # Angular app
+│   ├── src/app/
+│   │   ├── session-view/     # Main session UI (PDF + voice panel)
+│   │   ├── library/          # Document library
+│   │   ├── services/
+│   │   │   ├── voice.service.ts    # LiveKit connection, PTT, context send
+│   │   │   ├── api.service.ts      # HTTP client
+│   │   │   └── session.service.ts  # Progress polling
+│   │   └── components/
+│   │       ├── pdf-viewer/         # pdf.js viewer with fuzzy highlight matching
+│   │       └── shared/waveform/    # Animated waveform component
+│   └── src/styles.css        # Design tokens (CSS variables)
+├── Dockerfile                # Multi-stage: Node build → Python runtime
+└── .github/workflows/
+    └── deploy.yml            # Push to main → build → Cloud Run deploy
 ```
 
-## Manual Installation
+---
 
-If you prefer to install the dependencies manually, follow the instructions below.
+## Local development
 
-### Backend
+### Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+- A [VocalBridge](https://vocalbridgeai.com) API key
+
+### Backend setup
 
 ```bash
 cd backend
 python3 -m venv venv
-source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Frontend
+Create `backend/.env`:
+
+```env
+VOCAL_BRIDGE_API_KEY=your-key-here
+GOOGLE_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
+JWT_SECRET=any-long-random-string
+```
+
+Run:
+
+```bash
+python app.py          # http://localhost:8000
+```
+
+### Frontend setup
 
 ```bash
 cd learnaloud-frontend
 npm install
+ng serve               # http://localhost:4200
 ```
 
-### ArXiv MCP Server
+The Angular dev server proxies `/api/*` to `localhost:8000`.
+
+---
+
+## Environment variables
+
+| Variable | Where | Description |
+|---|---|---|
+| `VOCAL_BRIDGE_API_KEY` | backend `.env` / Cloud Run | VocalBridge API key for voice tokens |
+| `GOOGLE_CLIENT_ID` | backend `.env` / Cloud Run | OAuth 2.0 client ID |
+| `JWT_SECRET` | backend `.env` / Cloud Run | Secret for signing JWTs |
+| `FLASK_ENV` | Cloud Run | Set to `production` |
+| `FRONTEND_BUILD_DIR` | Cloud Run | `/app/static/browser` |
+| `GCP_PROJECT_ID` | Cloud Run | `learnaloud-app` (for Firestore) |
+
+---
+
+## Deployment
+
+The app runs as a **single Docker container** on Google Cloud Run — Flask serves both the Angular static files and the API.
+
+### How it works
+
+1. Push to `main` branch
+2. GitHub Actions builds a multi-stage Docker image:
+   - Stage 1 (Node 20): `ng build --configuration production`
+   - Stage 2 (Python 3.12): installs backend deps, copies Angular build to `/app/static/browser`
+3. Image is pushed to Google Artifact Registry
+4. Cloud Run is updated to the new image
+
+### Infrastructure
+
+| Resource | Value |
+|---|---|
+| GCP project | `learnaloud-app` |
+| Cloud Run service | `learnaloud` (us-central1) |
+| URL | https://learnaloud-6rego5ucxa-uc.a.run.app |
+| Min instances | 0 (scales to zero) |
+| Max instances | 1 |
+| Memory | 1 GiB |
+| Firestore database | `(default)` us-central1 |
+
+### Required GitHub secrets
+
+| Secret | Description |
+|---|---|
+| `GCP_SA_KEY` | Service account JSON key for `github-deploy@learnaloud-app` |
+| `GCP_PROJECT_ID` | `learnaloud-app` |
+| `VOCAL_BRIDGE_API_KEY` | VocalBridge API key |
+| `GOOGLE_CLIENT_ID` | OAuth client ID |
+| `JWT_SECRET` | JWT signing secret |
+
+### Manual deploy (without CI)
 
 ```bash
-cd arxiv-mcp
-uv venv
-source .venv/bin/activate # On Windows, use `.venv\Scripts\activate`
-uv pip install -e .
+gcloud auth configure-docker us-central1-docker.pkg.dev
+IMAGE=us-central1-docker.pkg.dev/learnaloud-app/learnaloud/app:latest
+docker build -t $IMAGE .
+docker push $IMAGE
+gcloud run deploy learnaloud --image $IMAGE --region us-central1
 ```
 
-## Running the Application
+---
 
-You will need to run three servers in separate terminals.
+## Agent prompt management
 
-### Terminal 1 - Backend
+The tutor's system prompt is versioned in `backend/prompts/vocalbridge_agent_system_prompt.json`. The **active prompt lives on the VocalBridge dashboard** — this file is the version history.
 
 ```bash
 cd backend
-source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-python app.py
+
+# See all versions
+python3 prompts/manage_prompts.py list
+
+# Print current prompt (copy to VocalBridge dashboard)
+python3 prompts/manage_prompts.py current tutor
+
+# Roll back to a previous version
+python3 prompts/manage_prompts.py rollback tutor v5
 ```
 
-The backend server will be running on `http://localhost:5000`.
+Current version: **v6** — continuous read-aloud, max 2 highlights per turn, structural mandate to end on content sentences.
 
-### Terminal 2 - Frontend
+---
 
-```bash
-cd learnaloud-frontend
-npx ng serve
-```
+## Analytics
 
-The frontend development server will be running on `http://localhost:4200`.
+Sign-ins and PDF uploads are logged to **Google Cloud Firestore** (`learnaloud-app`).
 
-### Terminal 3 - ArXiv MCP Server
+| Collection | Contents |
+|---|---|
+| `users` | One doc per user: name, email, first_seen, last_seen, sign_in_count |
+| `events` | All sign_in and pdf_upload events with timestamp |
 
-```bash
-cd arxiv-mcp
-source .venv/bin/activate # On Windows, use `.venv\Scripts\activate`
-python src/server.py
-```
+View at: https://console.cloud.google.com/firestore/databases/-default-/data/panel/users?project=learnaloud-app
 
-The ArXiv MCP server will be running on `http://localhost:8050`.
+Google Analytics 4 (measurement ID `G-3QRG5FRF7W`) tracks page views and login events.
 
-### Open the app
+---
 
-Navigate to [http://localhost:4200](http://localhost:4200) in your browser.
+## Google OAuth setup
 
-## Contributing
+The OAuth client is in GCP project `learnaloud-app` → APIs & Services → Credentials.
 
-The `main` branch is protected. All changes require a pull request with at least one approval.
+Authorized JavaScript origins must include:
+- `http://localhost:4200` (local dev)
+- `https://learnaloud-6rego5ucxa-uc.a.run.app` (production)
 
-### Workflow
+---
 
-1.  **Create a feature branch:**
+## Known limitations
 
-    ```bash
-    git checkout -b feat/my-feature
-    ```
-
-2.  **Make your changes and commit:**
-
-    ```bash
-    git add <files>
-    git commit -m "Description of changes"
-    ```
-
-3.  **Push and create a PR:**
-
-    ```bash
-    git push -u origin feat/my-feature
-    gh pr create --title "Add feature X"
-    ```
-
-4.  **Wait for review** — the PR must be approved before it can be merged into `main`.
-
-## Development
-
-### Testing
-
-*   **Backend:**
-
-    ```bash
-    cd backend
-    pytest
-    ```
-
-*   **Frontend:**
-
-    ```bash
-    cd learnaloud-frontend
-    npx ng test
-    ```
-
-### Linting and Formatting
-
-*   **Backend:**
-
-    ```bash
-    cd backend
-    # Add your preferred linting and formatting commands here
-    ```
-
-*   **Frontend:**
-
-    ```bash
-    cd learnaloud-frontend
-    npx ng lint
-    ```
+- Uploaded PDFs are stored on the container filesystem — lost on Cloud Run cold start (ephemeral storage)
+- Max PDF size: 1 MB
+- No mobile layout (desktop-first)
+- Echo cancellation relies on browser AEC + PTT; headphones give best results
+- Non-English PDFs not tested
