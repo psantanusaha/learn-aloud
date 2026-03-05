@@ -147,14 +147,14 @@ def _load_sessions_index():
 
 def _upsert_index_entry(entry):
     """Persist one sessions-index entry to Firestore (async) + disk fallback."""
-    db = _get_db()
-    if db:
-        def _write():
-            try:
+    def _write():
+        try:
+            db = _get_db()
+            if db:
                 db.collection('uploads').document(entry['id']).set(entry)
-            except Exception as e:
-                print(f"[Firestore] upsert_index_entry: {e}")
-        threading.Thread(target=_write, daemon=True).start()
+        except Exception as e:
+            print(f"[Firestore] upsert_index_entry: {e}")
+    threading.Thread(target=_write, daemon=True).start()
     # disk fallback
     try:
         index = {"sessions": []}
@@ -214,14 +214,14 @@ def _load_session_record(session_id):
 
 def _save_session_record(session_id, record):
     """Save a session record to Firestore (async) + local disk fallback."""
-    db = _get_db()
-    if db:
-        def _write():
-            try:
+    def _write():
+        try:
+            db = _get_db()
+            if db:
                 db.collection('learning_sessions').document(session_id).set(record)
-            except Exception as e:
-                print(f"[Firestore] save_session_record {session_id}: {e}")
-        threading.Thread(target=_write, daemon=True).start()
+        except Exception as e:
+            print(f"[Firestore] save_session_record {session_id}: {e}")
+    threading.Thread(target=_write, daemon=True).start()
     # disk fallback (best-effort)
     try:
         filepath = _get_session_file(session_id)
@@ -1435,14 +1435,14 @@ def _load_user_settings():
 
 def _save_user_settings(settings):
     """Save user settings to Firestore (async) + disk fallback."""
-    db = _get_db()
-    if db:
-        def _write():
-            try:
+    def _write():
+        try:
+            db = _get_db()
+            if db:
                 db.collection('settings').document('global').set(settings)
-            except Exception as e:
-                print(f"[Firestore] save_user_settings: {e}")
-        threading.Thread(target=_write, daemon=True).start()
+        except Exception as e:
+            print(f"[Firestore] save_user_settings: {e}")
+    threading.Thread(target=_write, daemon=True).start()
     try:
         with open(SETTINGS_FILE, "w") as f:
             json.dump(settings, f, indent=2)
