@@ -59,15 +59,17 @@ JWT_EXPIRY_HOURS = 24
 
 
 def _fs_log_event(event_type: str, data: dict):
-    """Write an event to Firestore. Fire-and-forget — never raises."""
+    """Write an event to Firestore in a native thread (avoids eventlet/gRPC conflict)."""
     if not _db:
         return
-    try:
-        data['type'] = event_type
-        data['timestamp'] = _firestore.SERVER_TIMESTAMP
-        _db.collection('events').add(data)
-    except Exception as e:
-        print(f"[Firestore] event write failed: {e}")
+    def _write():
+        try:
+            data['type'] = event_type
+            data['timestamp'] = _firestore.SERVER_TIMESTAMP
+            _db.collection('events').add(data)
+        except Exception as e:
+            print(f"[Firestore] event write failed: {e}")
+    threading.Thread(target=_write, daemon=True).start()
 
 
 def _require_auth():
@@ -1374,25 +1376,27 @@ def google_signin():
         with open(USERS_FILE, "w") as f:
             json.dump(users, f, indent=2)
 
-    # Upsert user in Firestore and log sign-in event
+    # Upsert user in Firestore (native thread to avoid eventlet/gRPC conflict)
     if _db:
-        try:
-            user_ref = _db.collection('users').document(google_id)
-            if is_new:
-                user_ref.set({
-                    'name': name, 'email': email, 'picture': picture,
-                    'first_seen': _firestore.SERVER_TIMESTAMP,
-                    'last_seen': _firestore.SERVER_TIMESTAMP,
-                    'sign_in_count': 1,
-                })
-            else:
-                user_ref.set({
-                    'name': name, 'email': email, 'picture': picture,
-                    'last_seen': _firestore.SERVER_TIMESTAMP,
-                    'sign_in_count': _firestore.Increment(1),
-                }, merge=True)
-        except Exception as e:
-            print(f"[Firestore] user upsert failed: {e}")
+        def _upsert_user():
+            try:
+                user_ref = _db.collection('users').document(google_id)
+                if is_new:
+                    user_ref.set({
+                        'name': name, 'email': email, 'picture': picture,
+                        'first_seen': _firestore.SERVER_TIMESTAMP,
+                        'last_seen': _firestore.SERVER_TIMESTAMP,
+                        'sign_in_count': 1,
+                    })
+                else:
+                    user_ref.set({
+                        'name': name, 'email': email, 'picture': picture,
+                        'last_seen': _firestore.SERVER_TIMESTAMP,
+                        'sign_in_count': _firestore.Increment(1),
+                    }, merge=True)
+            except Exception as e:
+                print(f"[Firestore] user upsert failed: {e}")
+        threading.Thread(target=_upsert_user, daemon=True).start()
     _fs_log_event('sign_in', {'email': email, 'name': name, 'is_new_user': is_new})
 
     payload = {
