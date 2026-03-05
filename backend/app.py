@@ -21,6 +21,13 @@ import jwt as pyjwt
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
+try:
+    from google.cloud import firestore as _firestore
+    _db = _firestore.Client(project=os.environ.get('GCP_PROJECT_ID', 'learnaloud-app'))
+except Exception as _e:
+    _db = None
+    print(f"[Firestore] Not available: {_e}")
+
 load_dotenv()
 
 # Determine if running in production
@@ -49,6 +56,18 @@ USERS_FILE = os.path.join(SESSIONS_DIR, "users.json")
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 JWT_SECRET = os.environ.get('JWT_SECRET', 'learnaloud-jwt-secret-change-in-prod')
 JWT_EXPIRY_HOURS = 24
+
+
+def _fs_log_event(event_type: str, data: dict):
+    """Write an event to Firestore. Fire-and-forget — never raises."""
+    if not _db:
+        return
+    try:
+        data['type'] = event_type
+        data['timestamp'] = _firestore.SERVER_TIMESTAMP
+        _db.collection('events').add(data)
+    except Exception as e:
+        print(f"[Firestore] event write failed: {e}")
 
 
 def _require_auth():
@@ -421,6 +440,17 @@ def upload_pdf():
                 "totalPages": total_pages,
             })
             _save_sessions_index(index)
+
+        # Log upload event to Firestore
+        jwt_payload = _require_auth()
+        _fs_log_event('pdf_upload', {
+            'session_id': session_id,
+            'doc_title': title,
+            'filename': file.filename,
+            'total_pages': total_pages,
+            'email': jwt_payload.get('email', 'anonymous') if jwt_payload else 'trial',
+            'name': jwt_payload.get('name', '') if jwt_payload else '',
+        })
 
         return jsonify({
             "session_id": session_id,
@@ -1330,7 +1360,8 @@ def google_signin():
             users = []
 
     user = next((u for u in users if u.get("google_id") == google_id), None)
-    if user is None:
+    is_new = user is None
+    if is_new:
         user = {
             "id": str(uuid.uuid4()),
             "google_id": google_id,
@@ -1342,6 +1373,27 @@ def google_signin():
         users.append(user)
         with open(USERS_FILE, "w") as f:
             json.dump(users, f, indent=2)
+
+    # Upsert user in Firestore and log sign-in event
+    if _db:
+        try:
+            user_ref = _db.collection('users').document(google_id)
+            if is_new:
+                user_ref.set({
+                    'name': name, 'email': email, 'picture': picture,
+                    'first_seen': _firestore.SERVER_TIMESTAMP,
+                    'last_seen': _firestore.SERVER_TIMESTAMP,
+                    'sign_in_count': 1,
+                })
+            else:
+                user_ref.set({
+                    'name': name, 'email': email, 'picture': picture,
+                    'last_seen': _firestore.SERVER_TIMESTAMP,
+                    'sign_in_count': _firestore.Increment(1),
+                }, merge=True)
+        except Exception as e:
+            print(f"[Firestore] user upsert failed: {e}")
+    _fs_log_event('sign_in', {'email': email, 'name': name, 'is_new_user': is_new})
 
     payload = {
         "user_id": user["id"],
