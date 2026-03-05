@@ -121,12 +121,15 @@ def _require_auth():
 
 
 def _load_sessions_index():
-    """Load the sessions index — Firestore primary, local disk fallback."""
+    """Load the sessions index — Firestore primary (via tpool), disk fallback."""
+    import eventlet.tpool
     db = _get_db()
     if db:
         try:
-            docs = db.collection('uploads').stream()
-            return {"sessions": [doc.to_dict() for doc in docs]}
+            def _fetch():
+                docs = db.collection('uploads').stream()
+                return [doc.to_dict() for doc in docs]
+            return {"sessions": eventlet.tpool.execute(_fetch)}
         except Exception as e:
             print(f"[Firestore] load_sessions_index: {e}")
     # disk fallback
@@ -181,13 +184,17 @@ def _get_session_file(session_id):
 
 
 def _load_session_record(session_id):
-    """Load a session record — Firestore primary, local disk fallback."""
+    """Load a session record — Firestore primary (via tpool), disk fallback."""
+    import eventlet.tpool
     db = _get_db()
     if db:
         try:
-            doc = db.collection('learning_sessions').document(session_id).get()
-            if doc.exists:
-                return doc.to_dict()
+            def _fetch():
+                doc = db.collection('learning_sessions').document(session_id).get()
+                return doc.to_dict() if doc.exists else None
+            result = eventlet.tpool.execute(_fetch)
+            if result is not None:
+                return result
         except Exception as e:
             print(f"[Firestore] load_session_record {session_id}: {e}")
     # disk fallback
@@ -250,15 +257,20 @@ def _gcs_save_session(session_id, session_dict, local_pdf_path):
 
 
 def _gcs_restore_session(session_id):
-    """Load session from GCS into the in-memory cache. Returns dict or None."""
+    """Load session from GCS into the in-memory cache (via tpool). Returns dict or None."""
+    import eventlet.tpool
     bucket = _get_gcs_bucket()
     if not bucket:
         return None
     try:
-        data_blob = bucket.blob(f"data/{session_id}.json")
-        if not data_blob.exists():
+        def _fetch():
+            blob = bucket.blob(f"data/{session_id}.json")
+            if not blob.exists():
+                return None
+            return json.loads(blob.download_as_text())
+        content = eventlet.tpool.execute(_fetch)
+        if not content:
             return None
-        content = json.loads(data_blob.download_as_text())
         session = {
             "filepath": os.path.join(UPLOAD_DIR, f"{session_id}.pdf"),
             "pdf_data": content["pdf_data"],
@@ -644,11 +656,16 @@ def serve_pdf(session_id):
         bucket = _get_gcs_bucket()
         if bucket:
             try:
-                blob = bucket.blob(f"pdfs/{session_id}.pdf")
-                if blob.exists():
+                import eventlet.tpool
+                def _download():
+                    blob = bucket.blob(f"pdfs/{session_id}.pdf")
+                    if not blob.exists():
+                        return False
                     os.makedirs(UPLOAD_DIR, exist_ok=True)
                     blob.download_to_filename(local_path)
-                else:
+                    return True
+                found = eventlet.tpool.execute(_download)
+                if not found:
                     return jsonify({"error": "Session not found"}), 404
             except Exception as e:
                 return jsonify({"error": f"Could not load PDF: {e}"}), 500
@@ -1386,13 +1403,17 @@ def get_document(doc_id):
 SETTINGS_FILE = os.path.join(SESSIONS_DIR, "user_settings.json")
 
 def _load_user_settings():
-    """Load user settings — Firestore primary, disk fallback."""
+    """Load user settings — Firestore primary (via tpool), disk fallback."""
+    import eventlet.tpool
     db = _get_db()
     if db:
         try:
-            doc = db.collection('settings').document('global').get()
-            if doc.exists:
-                return doc.to_dict()
+            def _fetch():
+                doc = db.collection('settings').document('global').get()
+                return doc.to_dict() if doc.exists else None
+            result = eventlet.tpool.execute(_fetch)
+            if result is not None:
+                return result
         except Exception as e:
             print(f"[Firestore] load_user_settings: {e}")
     if os.path.exists(SETTINGS_FILE):
