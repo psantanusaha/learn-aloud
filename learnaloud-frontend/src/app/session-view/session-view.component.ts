@@ -73,6 +73,8 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   chatText = '';
   showOnboarding = false;
   private onboardingKey = 'learnaloud_onboarded';
+  isPttActive = false;           // true while user is holding the PTT button
+  private autoMutedByAgent = false; // true while mic was muted because agent started speaking
 
   // --- Trial gate ---
   private readonly TRIAL_SECONDS = 60;
@@ -192,11 +194,10 @@ export class SessionViewComponent implements OnInit, OnDestroy {
               this.isMicEnabled = this.voice.isMicEnabled;
               this.cdr.markForCheck();
               // Nudge agent to resume speaking automatically
-              this.voice.publishData({
-                type: 'client_message',
-                action: 'text_input',
-                payload: { text: 'please continue' },
-              });
+              this.voice.publishData(
+                { type: 'client_action', action: 'text_input', payload: { text: 'please continue' } },
+                'client_actions',
+              );
             });
           }
         } else {
@@ -332,14 +333,55 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     }
   }
 
+  // --- Push-to-talk handlers ---
+  onPttStart(): void {
+    this.isPttActive = true;
+    this.voice.setMicEnabled(true).then(() => {
+      this.isMicEnabled = true;
+      this.cdr.markForCheck();
+    });
+  }
+
+  onPttEnd(): void {
+    this.isPttActive = false;
+    // Re-mute only if agent is still speaking; otherwise leave mic on
+    if (this.speakingState === 'tutor-speaking') {
+      this.voice.setMicEnabled(false).then(() => {
+        this.isMicEnabled = false;
+        this.cdr.markForCheck();
+      });
+    }
+  }
+
   // --- Transcript: LiveKit entries → UI messages + speaking state ---
   private updateTranscriptFromEntries(entries: TranscriptEntry[]): void {
     // Detect speaking state from the latest non-final segment
     const latest = entries[entries.length - 1];
+    const prevState = this.speakingState;
     if (latest && !latest.isFinal) {
       this.speakingState = latest.sender === 'agent' ? 'tutor-speaking' : 'user-speaking';
     } else if (latest && latest.isFinal) {
       this.speakingState = 'ready';
+    }
+
+    // Auto-mute mic when agent starts speaking (unless user is holding PTT)
+    if (prevState !== 'tutor-speaking' && this.speakingState === 'tutor-speaking') {
+      if (this.isMicEnabled && !this.isPttActive) {
+        this.autoMutedByAgent = true;
+        this.voice.setMicEnabled(false).then(() => {
+          this.isMicEnabled = false;
+          this.cdr.markForCheck();
+        });
+      }
+    } else if (prevState === 'tutor-speaking' && this.speakingState !== 'tutor-speaking') {
+      // Agent finished speaking — restore mic if we were the one who muted it
+      if (this.autoMutedByAgent && !this.isPttActive) {
+        this.autoMutedByAgent = false;
+        this.voice.setMicEnabled(true).then(() => {
+          this.isMicEnabled = true;
+          this.cdr.markForCheck();
+        });
+      }
     }
 
     // Show all non-empty messages; non-final entries render as live captions
@@ -393,11 +435,10 @@ onEnd(): void {
     if (!this.chatText.trim()) return;
     const text = this.chatText.trim();
     this.sendMessage.emit(text);
-    this.voice.publishData({
-      type: 'client_message',
-      action: 'text_input',
-      payload: { text },
-    });
+    this.voice.publishData(
+      { type: 'client_action', action: 'text_input', payload: { text } },
+      'client_actions',
+    );
     this.chatText = '';
   }
 

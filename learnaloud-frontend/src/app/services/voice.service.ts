@@ -72,7 +72,13 @@ export class VoiceService {
     this.isConnected = false;
     this.isDebateMode = false;
     this.transcript = [];
-    this.room = new Room();
+    this.room = new Room({
+      audioCaptureDefaults: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
 
     this.room.on(
       RoomEvent.TrackSubscribed,
@@ -649,17 +655,29 @@ export class VoiceService {
     }
 
     if (!this.room?.localParticipant) return;
-    // Send PDF context as a client_action data message so the agent receives it
+    // Truncate context to stay under the 64KB WebRTC data channel limit
+    const encoder = new TextEncoder();
+    let ctx = context;
+    while (encoder.encode(JSON.stringify({ type: 'client_action', action: 'pdf_context', payload: { context: ctx } })).length > 60000) {
+      ctx = ctx.slice(0, Math.floor(ctx.length * 0.9));
+    }
     const message = JSON.stringify({
       type: 'client_action',
       action: 'pdf_context',
-      payload: { context },
+      payload: { context: ctx },
     });
-    const payload = new TextEncoder().encode(message);
+    const payload = encoder.encode(message);
     await this.room.localParticipant.publishData(payload, {
       reliable: true,
       topic: 'client_actions',
     });
+  }
+
+  /** Directly enable or disable the local mic without toggling. */
+  async setMicEnabled(enabled: boolean): Promise<void> {
+    if (!this.room?.localParticipant) return;
+    await this.room.localParticipant.setMicrophoneEnabled(enabled);
+    this.isMicEnabled = enabled;
   }
 
   setClientActionHandler(handler: (action: any) => void): void {

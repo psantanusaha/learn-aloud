@@ -143,17 +143,30 @@ def _build_pdf_context(pdf_data, filename, outline):
         "",
         "=== FULL PDF TEXT (every page, every word) ===",
     ]
-    for page in pdf_data.get("pages", []):
-        lines.append(f"--- Page {page['page_num']} ---")
-        lines.append(" ".join(b["text"] for b in page["blocks"]))
+    # Budget: 50 000 bytes for page text (leaves room for outline + instructions + JSON wrapper)
+    MAX_PAGE_BYTES = 50_000
+    page_bytes_used = 0
+    pages_included = 0
+    all_pages = pdf_data.get("pages", [])
+    for page in all_pages:
+        page_line = f"--- Page {page['page_num']} ---"
+        text_line = " ".join(b["text"] for b in page["blocks"])
+        fig_lines = []
         for fig in page.get("figures", []):
             bbox = fig["bbox"]
-            lines.append(
+            fig_lines.append(
                 f'[FIGURE on page {page["page_num"]}: "{fig["label"]}" '
                 f"bbox=({bbox[0]:.0f},{bbox[1]:.0f},{bbox[2]:.0f},{bbox[3]:.0f}) "
                 f"pageSize=({page['width']:.0f},{page['height']:.0f})]"
             )
-        lines.append("")
+        page_block = "\n".join([page_line, text_line] + fig_lines + [""])
+        block_bytes = len(page_block.encode("utf-8"))
+        if page_bytes_used + block_bytes > MAX_PAGE_BYTES:
+            lines.append(f"[Pages {page['page_num']}–{total_pages} omitted — exceeds context limit]")
+            break
+        lines.append(page_block)
+        page_bytes_used += block_bytes
+        pages_included += 1
     lines.append("=== END FULL PDF TEXT ===")
     lines.append("")
 
@@ -343,6 +356,12 @@ def upload_pdf():
     file = request.files["file"]
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         return jsonify({"error": "Only PDF files are accepted"}), 400
+
+    file.seek(0, 2)  # seek to end
+    file_size = file.tell()
+    file.seek(0)     # reset
+    if file_size > 1 * 1024 * 1024:
+        return jsonify({"error": f"File too large ({file_size / 1024 / 1024:.1f} MB). Maximum size is 1 MB."}), 413
 
     session_id = str(uuid.uuid4())
     filename = f"{session_id}.pdf"

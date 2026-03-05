@@ -65,7 +65,7 @@
           <div class="dropzone-meta">
             <span>PDF</span>
             <span class="meta-dot"></span>
-            <span>Up to 50 MB</span>
+            <span>Up to 1 MB</span>
           </div>
           <la-button variant="primary" size="md">
             Choose File
@@ -78,6 +78,9 @@
         }
       </div>
 
+      @if (uploadError) {
+        <p class="upload-error">{{ uploadError }}</p>
+      }
       <p class="empty-message">
         Your library is empty — upload your first PDF to get started
       </p>
@@ -127,6 +130,10 @@
           </div>
         }
       </div>
+
+      @if (uploadError) {
+        <p class="upload-error">{{ uploadError }}</p>
+      }
 
       <!-- Document Grid -->
       <div class="document-grid">

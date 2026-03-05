@@ -370,6 +370,24 @@
   color: var(--error);
 }
 
+.control-btn.control-ptt {
+  color: rgba(255, 255, 255, 0.5);
+  border-style: dashed;
+  user-select: none;
+}
+
+.control-btn.control-ptt:hover {
+  color: var(--white);
+  border-style: dashed;
+}
+
+.control-btn.control-ptt-active {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.5);
+  border-style: solid;
+  color: var(--listening);
+}
+
 .control-btn.control-end {
   color: var(--error);
 }
@@ -379,6 +397,7 @@
   border-color: rgba(232, 91, 91, 0.3);
 }
 
+/* --- Voice Command Hints --- */
 /* --- Voice Command Hints --- */
 .command-hints {
   display: flex;
@@ -557,6 +576,19 @@
   color: var(--error);
   background: rgba(232, 91, 91, 0.1);
   border-color: rgba(232, 91, 91, 0.3);
+}
+
+.mic-btn.mic-ptt {
+  color: rgba(255, 255, 255, 0.4);
+  border-style: dashed;
+  user-select: none;
+}
+
+.mic-btn.mic-ptt-active {
+  color: var(--listening);
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.5);
+  border-style: solid;
 }
 
 .chat-input {

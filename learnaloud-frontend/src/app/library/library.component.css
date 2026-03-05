@@ -260,6 +260,13 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
+.upload-error {
+  font-size: 0.85rem;
+  color: #f87171;
+  text-align: center;
+  margin: 0.5rem 0 0;
+}
+
 /* --- Compact Dropzone (With Documents) --- */
 .dropzone-compact {
   padding: var(--space-4) var(--space-5);

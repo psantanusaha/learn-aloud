@@ -50,6 +50,7 @@ export class LibraryComponent implements OnInit, OnDestroy {
   uploadProgress = 0;
   isDragOver = false;
   userName = 'there';
+  uploadError = '';
 
   private subscriptions: Subscription[] = [];
   private readonly apiBase = '/api';
@@ -155,13 +156,17 @@ export class LibraryComponent implements OnInit, OnDestroy {
   }
 
   private uploadFile(file: File): void {
+    this.uploadError = '';
+
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      console.error('Only PDF files are supported');
+      this.uploadError = 'Only PDF files are supported.';
+      this.cdr.markForCheck();
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      console.error('File size must be less than 50MB');
+    if (file.size > 1 * 1024 * 1024) {
+      this.uploadError = `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is 1 MB.`;
+      this.cdr.markForCheck();
       return;
     }
 
@@ -185,6 +190,7 @@ export class LibraryComponent implements OnInit, OnDestroy {
         clearInterval(progressInterval);
         this.uploadProgress = 100;
         this.isUploading = false;
+        this.uploadError = '';
         this.cdr.markForCheck();
 
         // Navigate to session
@@ -192,9 +198,9 @@ export class LibraryComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         clearInterval(progressInterval);
-        console.error('Upload failed:', err);
         this.isUploading = false;
         this.uploadProgress = 0;
+        this.uploadError = err?.error?.error || 'Upload failed. Please try again.';
         this.cdr.markForCheck();
       },
     });
