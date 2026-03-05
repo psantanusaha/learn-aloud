@@ -6,6 +6,10 @@
       <span class="logo-icon">📖</span>
       <span class="logo-text">LearnAloud</span>
     </a>
+    <div class="user-profile">
+      <span class="user-email">{{ userName }}</span>
+      <button class="logout-btn" (click)="logout()">Sign Out</button>
+    </div>
   </header>
 
   <!-- Loading State -->
@@ -50,7 +54,7 @@
               </svg>
               <span class="progress-text">{{ uploadProgress }}%</span>
             </div>
-            <p class="upload-status">Uploading your document...</p>
+            <p class="upload-status">{{ uploadProgress < 80 ? 'Uploading your document...' : 'Analyzing PDF structure...' }}</p>
           </div>
         } @else {
           <div class="dropzone-icon">

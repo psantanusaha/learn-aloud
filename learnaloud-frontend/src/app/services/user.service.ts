@@ -42,10 +42,28 @@ export class UserService {
 
   login(email: string, password: string): { success: boolean; error?: string } {
     const users = this.getUsers();
-    const user = users.find(u => u.email === email && u.password === password);
+    let user = users.find(u => u.email === email);
+
+    // Special handling for Google Sign-In
+    if (!user && password === 'google-oauth-managed') {
+      user = {
+        name: email.split('@')[0],
+        email,
+        password: 'google-oauth-managed',
+        academicLevel: '',
+        subjects: [],
+        onboarded: true, // Auto-onboard Google users for now
+      };
+      users.push(user);
+      this.saveUsers(users);
+    } else if (user && user.password !== password && password !== 'google-oauth-managed') {
+      return { success: false, error: 'Invalid email or password.' };
+    }
+
     if (!user) {
       return { success: false, error: 'Invalid email or password.' };
     }
+
     this.currentUser = user;
     localStorage.setItem(CURRENT_USER_KEY, email);
     return { success: true };

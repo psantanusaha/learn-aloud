@@ -19,7 +19,7 @@ class PDFProcessor:
 
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                page_dict = page.get_text("dict")
+                page_dict = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)
                 width = page_dict["width"]
                 height = page_dict["height"]
 

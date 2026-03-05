@@ -2,9 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterOutlet, Router } from '@angular/router'; // Import Router
 import { CommonModule } from '@angular/common';
-import { PdfViewerComponent } from './components/pdf-viewer/pdf-viewer.component';
-import { AgentResultsPanelComponent, AgentResult } from './components/agent-results-panel/agent-results-panel.component';
-import { TutorialComponent } from './components/tutorial/tutorial.component';
+import { AgentResult } from './components/agent-results-panel/agent-results-panel.component';
 import { ApiService } from './services/api.service';
 import { VoiceService, TranscriptEntry } from './services/voice.service';
 import { AgentService, McpTool } from './services/agent.service';
@@ -29,19 +27,13 @@ export interface PaperStackEntry {
   standalone: true,
   imports: [
     CommonModule,
-    PdfViewerComponent,
-    AgentResultsPanelComponent,
     FormsModule,
     RouterOutlet,
-    TutorialComponent,
   ],
   templateUrl: './app.html',
   styleUrls: ['./app.css'],
 })
 export class App implements OnInit, OnDestroy {
-  showTutorial = true;
-  isTutorialActive = true;
-
   get userName(): string { return this.userService.currentUser?.name || ''; }
 
   sessionId = '';
@@ -144,10 +136,6 @@ export class App implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private router: Router,
   ) {
-    if (this.userService.isLoggedIn() && this.userService.isOnboarded()) {
-      this.showTutorial = false;
-      this.isTutorialActive = false;
-    }
     this.loadSessionHistory();
   }
 
@@ -157,9 +145,7 @@ export class App implements OnInit, OnDestroy {
 
     this.api.onConnect(() => {
       console.log('Connected to LearnAloud server');
-      if (!this.isTutorialActive) {
-        this.statusMessage = 'Connected to server';
-      }
+      this.statusMessage = 'Connected to server';
       this.activity.post({ category: 'state', title: 'Connected to server' });
       this.cdr.detectChanges();
     });
@@ -354,55 +340,9 @@ export class App implements OnInit, OnDestroy {
     });
   }
 
-  startAppFromTutorial(): void {
-    this.showTutorial = false;
-    this.isTutorialActive = false;
-    this.statusMessage = 'Loading sample paper...';
-    this.cdr.detectChanges();
-
-    fetch('sample.pdf')
-      .then(res => res.blob())
-      .then(blob => {
-        const file = new File([blob], 'sample.pdf', { type: 'application/pdf' });
-        this.api.uploadPDF(file).subscribe({
-          next: (res: any) => {
-            this.sessionId = res.session_id;
-            this.pdfUrl = this.api.getPdfUrl(res.session_id);
-            this.uploadedFileName = 'Attention Is All You Need.pdf';
-
-            // Initialize paper stack
-            this.paperStack = [{
-              sessionId: res.session_id,
-              pdfUrl: this.pdfUrl,
-              fileName: this.uploadedFileName,
-            }];
-            this.activePaperIndex = 0;
-            this.previewPaperIndex = null;
-            this.showPreviewPanel = false;
-
-            this.statusMessage = `Loaded "${this.uploadedFileName}" (${res.total_pages} pages)`;
-            this.activity.post({ category: 'state', title: `Sample PDF loaded: ${this.uploadedFileName}`, detail: `${res.total_pages} pages` });
-            this.broadcastState();
-            this.fetchMcpTools();
-            this.loadReferences();
-            this.cdr.detectChanges();
-            
-            // Show mode selector instead of auto-starting
-            this.showModeSelection();
-          },
-          error: (err) => {
-            console.error('Sample PDF upload failed:', err);
-            this.statusMessage = 'Failed to load sample paper. Try uploading a PDF manually.';
-            this.cdr.detectChanges();
-          },
-        });
-      });
-  }
-
   logout(): void {
     this.userService.logout();
-    this.showTutorial = true;
-    this.isTutorialActive = true;
+    this.router.navigate(['/landing']);
     this.sessionId = '';
     this.pdfUrl = '';
     this.uploadedFileName = '';
@@ -1788,9 +1728,6 @@ Completed in ${res.mcp_info.duration_ms}ms`,
     if (handoverSessionId) {
       // Persist so it survives page reloads / phone lock-unlock
       sessionStorage.setItem('learnaloud_handover_session', handoverSessionId);
-      // Skip tutorial for handover
-      this.showTutorial = false;
-      this.isTutorialActive = false;
       // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
       this.loadSessionFromHandover(handoverSessionId);

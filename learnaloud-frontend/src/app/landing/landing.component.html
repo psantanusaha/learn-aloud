@@ -1,0 +1,157 @@
+<div class="page">
+
+  <!-- Ambient background orbs -->
+  <div class="orb orb-amber" aria-hidden="true"></div>
+  <div class="orb orb-teal"  aria-hidden="true"></div>
+
+  <!-- ══════════════ HERO ══════════════ -->
+  <main class="hero">
+
+    <!-- Award callout -->
+    <div class="award-badge">
+      <svg class="award-star" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+      </svg>
+      <span>1st Place · DeepLearning.AI Vocal Bridge Hackathon</span>
+    </div>
+
+    <!-- Title -->
+    <div class="title-block">
+      <h1 class="hero-title">
+        <span class="title-learn">Learn</span><span class="title-aloud">Aloud</span>
+      </h1>
+      <p class="hero-tagline">
+        Your AI voice tutor for academic papers.<br>
+        Read along, ask questions, truly understand.
+      </p>
+    </div>
+
+    <!-- Upload card -->
+    <div class="upload-card" [class.uploading]="isUploading">
+
+      @if (!isUploading) {
+        <div class="upload-content">
+          <button class="btn-upload" (click)="triggerFileInput()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Upload PDF
+          </button>
+          <p class="upload-hint">Free session · no account needed · up to 1 MB</p>
+
+          <div class="or-divider"><span>or</span></div>
+
+          <button class="btn-sample" (click)="trySample()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+            Try Sample Paper
+          </button>
+        </div>
+      }
+
+      @if (isUploading) {
+        <div class="upload-loading">
+          <div class="loading-ring">
+            <div></div><div></div><div></div><div></div>
+          </div>
+          <p class="loading-text">Synthesizing Knowledge Base<span class="loading-ellipsis">...</span></p>
+        </div>
+      }
+
+      <input
+        type="file"
+        id="file-input"
+        (change)="onFileSelected($event)"
+        accept="application/pdf"
+        style="display:none"
+      />
+    </div>
+
+    @if (uploadError) {
+      <p class="error-msg" role="alert">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        {{ uploadError }}
+      </p>
+    }
+
+    <!-- Auth -->
+    <div class="auth-section">
+
+      @if (!isLoggedIn()) {
+        <div class="auth-cta">
+          <p class="auth-label">Returning researcher? Sign in to access your library.</p>
+          <div id="google-signin-btn"></div>
+        </div>
+      }
+
+      @if (isLoggedIn()) {
+        <div class="signed-in-state">
+          <span class="signed-in-email">{{ currentUserEmail }}</span>
+          <div class="signed-in-actions">
+            <button class="btn-library" (click)="goToLibrary()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+              Open Library
+            </button>
+            <button class="btn-signout" (click)="logout()">Sign Out</button>
+          </div>
+        </div>
+      }
+
+      <button class="debug-reset" (click)="clearAll()">Reset Session Cache</button>
+    </div>
+  </main>
+
+  <!-- ══════════════ FEATURES ══════════════ -->
+  <section class="features" aria-label="Features">
+    <div class="features-inner">
+
+      <div class="feature-item">
+        <div class="feature-num" aria-hidden="true">01</div>
+        <div class="feature-body">
+          <h3>Natural Conversation</h3>
+          <p>Interrupt, challenge, ask for analogies. Your AI tutor adapts in real time to your pace, depth, and curiosity.</p>
+        </div>
+        <div class="feature-glyph" aria-hidden="true">🎙️</div>
+      </div>
+
+      <div class="feature-divider"></div>
+
+      <div class="feature-item">
+        <div class="feature-num" aria-hidden="true">02</div>
+        <div class="feature-body">
+          <h3>Visual Guidance</h3>
+          <p>Sentence-level highlighting keeps you anchored as the AI reads — never lose the thread of a dense argument.</p>
+        </div>
+        <div class="feature-glyph" aria-hidden="true">🖍️</div>
+      </div>
+
+      <div class="feature-divider"></div>
+
+      <div class="feature-item">
+        <div class="feature-num" aria-hidden="true">03</div>
+        <div class="feature-body">
+          <h3>Active Retrieval</h3>
+          <p>Adaptive quizzes surface at key moments, forcing recall that cements deep, lasting comprehension.</p>
+        </div>
+        <div class="feature-glyph" aria-hidden="true">🧠</div>
+      </div>
+
+    </div>
+  </section>
+
+</div>

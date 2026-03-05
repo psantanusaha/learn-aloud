@@ -18,6 +18,7 @@ import { VoiceService, TranscriptEntry } from '../services/voice.service';
 import { SessionService } from '../services/session.service';
 import { ApiService } from '../services/api.service';
 import { ActionService } from '../services/action.service';
+import { GoogleAuthService } from '../services/google-auth.service';
 import { HighlightTextPayload, HighlightRegionPayload, NavigateToPagePayload } from '../actions';
 
 export type SpeakingState = 'tutor-speaking' | 'user-speaking' | 'ready';
@@ -61,7 +62,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   @Output() back = new EventEmitter<void>();
   @Output() pause = new EventEmitter<void>();
   @Output() resume = new EventEmitter<void>();
-@Output() end = new EventEmitter<void>();
+  @Output() end = new EventEmitter<void>();
   @Output() sendMessage = new EventEmitter<string>();
   @Output() toggleMic = new EventEmitter<void>();
 
@@ -95,6 +96,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     public sessionService: SessionService,
     private api: ApiService,
     private actionService: ActionService,
+    private googleAuth: GoogleAuthService,
   ) {}
 
   ngOnInit(): void {
@@ -107,6 +109,9 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     // Check if user has been onboarded
     const onboarded = localStorage.getItem(this.onboardingKey);
     this.showOnboarding = !onboarded;
+
+    // Initialize Google Auth
+    this.googleAuth.init();
 
     // Wire voice data channel → PDF highlight/navigation actions
     this.voice.setClientActionHandler((action: any) => {
@@ -122,7 +127,6 @@ export class SessionViewComponent implements OnInit, OnDestroy {
 
     // Start voice session
     this.startVoiceSession();
-    this.initGoogleSignIn();
 
     // Start progress polling
     if (this.routeSessionId) {
@@ -154,63 +158,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     }
     this.showAuthGate = true;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderGoogleButton(), 50);
-  }
-
-  private initGoogleSignIn(): void {
-    const clientId = (window as any).GOOGLE_CLIENT_ID;
-    if (!clientId || !(window as any).google) return;
-    (window as any).google.accounts.id.initialize({
-      client_id: clientId,
-      callback: (response: any) => this.onGoogleCredential(response),
-    });
-  }
-
-  private renderGoogleButton(): void {
-    const el = document.getElementById('google-signin-btn');
-    if (!el || !(window as any).google) return;
-    (window as any).google.accounts.id.renderButton(el, {
-      theme: 'outline', size: 'large', width: 340, text: 'continue_with',
-    });
-  }
-
-  onGoogleCredential(response: any): void {
-    this.signupSubmitting = true;
-    this.signupError = '';
-    this.cdr.markForCheck();
-    this.api.googleSignin(response.credential).subscribe({
-      next: (res: any) => {
-        localStorage.setItem(this.TOKEN_KEY, res.token);
-        localStorage.setItem(this.SIGNED_IN_KEY, JSON.stringify(res.user));
-        this.showAuthGate = false;
-        this.signupSubmitting = false;
-        this.cdr.markForCheck();
-        (window as any).gtag?.('event', 'login', { method: 'Google' });
-        if (this.sessionStarted) {
-          // Trial expired: voice is already connected but paused — just resume
-          if (this.isPaused) {
-            this.voice.togglePause().then(() => {
-              this.isPaused = this.voice.isPaused;
-              this.isMicEnabled = this.voice.isMicEnabled;
-              this.cdr.markForCheck();
-              // Nudge agent to resume speaking automatically
-              this.voice.publishData(
-                { type: 'client_action', action: 'text_input', payload: { text: 'please continue' } },
-                'client_actions',
-              );
-            });
-          }
-        } else {
-          // No session yet (trial token fetch failed) — start fresh
-          this.startVoiceSession();
-        }
-      },
-      error: () => {
-        this.signupError = 'Sign-in failed. Please try again.';
-        this.signupSubmitting = false;
-        this.cdr.markForCheck();
-      },
-    });
+    setTimeout(() => this.googleAuth.renderButton('google-signin-btn'), 50);
   }
 
   ngOnDestroy(): void {
@@ -248,7 +196,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
           // Trial token failed — show auth gate immediately
           this.showAuthGate = true;
           this.cdr.markForCheck();
-          setTimeout(() => this.renderGoogleButton(), 50);
+          setTimeout(() => this.googleAuth.renderButton('google-signin-btn'), 50);
         },
       });
       return;
@@ -304,8 +252,6 @@ export class SessionViewComponent implements OnInit, OnDestroy {
         text: action.payload.text,
         color: action.payload.color || 'yellow',
         page: action.payload.page || 1,
-        // Omit sessionId so shouldHandleAction uses the !isPreview fallback (always true
-        // for the main viewer). Avoids session-ID mismatch between parent and child.
       };
       this.actionService.dispatch({ type: 'HIGHLIGHT_TEXT', payload });
       this.sessionService.sendCoverageUpdate(
@@ -416,7 +362,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     });
   }
 
-onEnd(): void {
+  onEnd(): void {
     this.end.emit();
     this.voice.disconnect();
     this.router.navigate(['/library']);
@@ -488,8 +434,7 @@ onEnd(): void {
 
   getRelativeTime(timestamp: number): string {
     const diff = Date.now() - timestamp;
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
+    const minutes = Math.floor(diff / 60000);
 
     if (minutes < 1) return 'now';
     if (minutes === 1) return '1m ago';

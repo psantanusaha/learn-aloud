@@ -41,6 +41,29 @@ def _get_db():
             print(f"[Firestore] Not available: {e}")
     return _db
 
+
+# ── GCS (lazy-init) ───────────────────────────────────────────────────────────
+_gcs_bucket = None
+_gcs_lock = threading.Lock()
+GCS_BUCKET = os.environ.get('GCS_BUCKET', 'learnaloud-sessions')
+
+
+def _get_gcs_bucket():
+    """Lazy-init GCS bucket handle."""
+    global _gcs_bucket
+    if _gcs_bucket is not None:
+        return _gcs_bucket
+    with _gcs_lock:
+        if _gcs_bucket is not None:
+            return _gcs_bucket
+        try:
+            from google.cloud import storage
+            client = storage.Client(project=os.environ.get('GCP_PROJECT_ID', 'learnaloud-app'))
+            _gcs_bucket = client.bucket(GCS_BUCKET)
+        except Exception as e:
+            print(f"[GCS] Not available: {e}")
+    return _gcs_bucket
+
 load_dotenv()
 
 # Determine if running in production
@@ -98,20 +121,58 @@ def _require_auth():
 
 
 def _load_sessions_index():
-    """Load the sessions index from disk."""
+    """Load the sessions index — Firestore primary, local disk fallback."""
+    db = _get_db()
+    if db:
+        try:
+            docs = db.collection('uploads').stream()
+            return {"sessions": [doc.to_dict() for doc in docs]}
+        except Exception as e:
+            print(f"[Firestore] load_sessions_index: {e}")
+    # disk fallback
     if os.path.exists(SESSIONS_INDEX_FILE):
         try:
             with open(SESSIONS_INDEX_FILE, "r") as f:
                 return json.load(f)
         except Exception:
-            return {"sessions": []}
+            pass
     return {"sessions": []}
 
 
+def _upsert_index_entry(entry):
+    """Persist one sessions-index entry to Firestore (async) + disk fallback."""
+    db = _get_db()
+    if db:
+        def _write():
+            try:
+                db.collection('uploads').document(entry['id']).set(entry)
+            except Exception as e:
+                print(f"[Firestore] upsert_index_entry: {e}")
+        threading.Thread(target=_write, daemon=True).start()
+    # disk fallback
+    try:
+        index = {"sessions": []}
+        if os.path.exists(SESSIONS_INDEX_FILE):
+            with open(SESSIONS_INDEX_FILE, "r") as f:
+                index = json.load(f)
+        if not any(e.get("id") == entry["id"] for e in index["sessions"]):
+            index["sessions"].append(entry)
+            with open(SESSIONS_INDEX_FILE, "w") as f:
+                json.dump(index, f, indent=2)
+    except Exception:
+        pass
+
+
 def _save_sessions_index(index):
-    """Save the sessions index to disk."""
-    with open(SESSIONS_INDEX_FILE, "w") as f:
-        json.dump(index, f, indent=2)
+    """Legacy full-index save — upserts every entry to Firestore + disk."""
+    for entry in index.get("sessions", []):
+        if entry.get("id"):
+            _upsert_index_entry(entry)
+    try:
+        with open(SESSIONS_INDEX_FILE, "w") as f:
+            json.dump(index, f, indent=2)
+    except Exception:
+        pass
 
 
 def _get_session_file(session_id):
@@ -120,19 +181,105 @@ def _get_session_file(session_id):
 
 
 def _load_session_record(session_id):
-    """Load a session record from disk."""
+    """Load a session record — Firestore primary, local disk fallback."""
+    db = _get_db()
+    if db:
+        try:
+            doc = db.collection('learning_sessions').document(session_id).get()
+            if doc.exists:
+                return doc.to_dict()
+        except Exception as e:
+            print(f"[Firestore] load_session_record {session_id}: {e}")
+    # disk fallback
     filepath = _get_session_file(session_id)
     if os.path.exists(filepath):
-        with open(filepath, "r") as f:
-            return json.load(f)
+        try:
+            with open(filepath, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
     return None
 
 
 def _save_session_record(session_id, record):
-    """Save a session record to disk."""
-    filepath = _get_session_file(session_id)
-    with open(filepath, "w") as f:
-        json.dump(record, f, indent=2)
+    """Save a session record to Firestore (async) + local disk fallback."""
+    db = _get_db()
+    if db:
+        def _write():
+            try:
+                db.collection('learning_sessions').document(session_id).set(record)
+            except Exception as e:
+                print(f"[Firestore] save_session_record {session_id}: {e}")
+        threading.Thread(target=_write, daemon=True).start()
+    # disk fallback (best-effort)
+    try:
+        filepath = _get_session_file(session_id)
+        with open(filepath, "w") as f:
+            json.dump(record, f, indent=2)
+    except Exception:
+        pass
+
+
+# ── GCS session helpers ───────────────────────────────────────────────────────
+
+def _gcs_save_session(session_id, session_dict, local_pdf_path):
+    """Upload PDF file + parsed data blob to GCS. Runs in a background thread."""
+    bucket = _get_gcs_bucket()
+    if not bucket:
+        return
+
+    def _upload():
+        try:
+            # PDF file
+            pdf_blob = bucket.blob(f"pdfs/{session_id}.pdf")
+            pdf_blob.upload_from_filename(local_pdf_path)
+            # Parsed data (pdf_data + outline + metadata) as JSON
+            data_blob = bucket.blob(f"data/{session_id}.json")
+            payload = json.dumps({
+                "pdf_data": session_dict["pdf_data"],
+                "outline":  session_dict["outline"],
+                "filename": session_dict["filename"],
+                "title":    session_dict.get("title", ""),
+            })
+            data_blob.upload_from_string(payload, content_type="application/json")
+            print(f"[GCS] session {session_id} saved ({len(payload)//1024} KB data)")
+        except Exception as e:
+            print(f"[GCS] save_session {session_id} failed: {e}")
+
+    threading.Thread(target=_upload, daemon=True).start()
+
+
+def _gcs_restore_session(session_id):
+    """Load session from GCS into the in-memory cache. Returns dict or None."""
+    bucket = _get_gcs_bucket()
+    if not bucket:
+        return None
+    try:
+        data_blob = bucket.blob(f"data/{session_id}.json")
+        if not data_blob.exists():
+            return None
+        content = json.loads(data_blob.download_as_text())
+        session = {
+            "filepath": os.path.join(UPLOAD_DIR, f"{session_id}.pdf"),
+            "pdf_data": content["pdf_data"],
+            "outline":  content["outline"],
+            "filename": content["filename"],
+            "title":    content.get("title", ""),
+            "current_page": 1,
+            "transcript_summary": "",
+            "concepts_discussed": [],
+        }
+        sessions[session_id] = session
+        print(f"[GCS] restored session {session_id}")
+        return session
+    except Exception as e:
+        print(f"[GCS] restore_session {session_id} failed: {e}")
+        return None
+
+
+def _get_session(session_id):
+    """Return session dict from memory cache, or restore from GCS on miss."""
+    return sessions.get(session_id) or _gcs_restore_session(session_id)
 
 pdf_processor = PDFProcessor()
 vocal_bridge = VocalBridgeClient(os.getenv("VOCAL_BRIDGE_API_KEY", ""))
@@ -403,9 +550,14 @@ def upload_pdf():
     filepath = os.path.join(UPLOAD_DIR, filename)
 
     try:
+        t0 = time.perf_counter()
         file.save(filepath)
+        t1 = time.perf_counter()
         pdf_data = pdf_processor.extract_structure(filepath)
+        t2 = time.perf_counter()
         outline = pdf_processor.build_outline(pdf_data)
+        t3 = time.perf_counter()
+        print(f"[upload] save={t1-t0:.2f}s extract={t2-t1:.2f}s outline={t3-t2:.2f}s total={t3-t0:.2f}s")
         title = None
 
         # Try 1: first section heading from outline
@@ -444,18 +596,18 @@ def upload_pdf():
             "concepts_discussed": [],
         }
 
-        # Register in sessions index so the library can find it
-        index = _load_sessions_index()
-        if not any(e.get("id") == session_id for e in index.get("sessions", [])):
-            index["sessions"].append({
-                "id": session_id,
-                "docId": session_id,
-                "title": title,
-                "filename": file.filename,
-                "startedAt": int(time.time() * 1000),
-                "totalPages": total_pages,
-            })
-            _save_sessions_index(index)
+        # Persist PDF + parsed data to GCS (background thread)
+        _gcs_save_session(session_id, sessions[session_id], filepath)
+
+        # Register in sessions index (Firestore + disk)
+        _upsert_index_entry({
+            "id": session_id,
+            "docId": session_id,
+            "title": title,
+            "filename": file.filename,
+            "startedAt": int(time.time() * 1000),
+            "totalPages": total_pages,
+        })
 
         # Log upload event to Firestore
         jwt_payload = _require_auth()
@@ -487,10 +639,22 @@ def documents_upload():
 
 @app.route("/api/pdf/<session_id>", methods=["GET"])
 def serve_pdf(session_id):
-    session = sessions.get(session_id)
-    if not session:
-        return jsonify({"error": "Session not found"}), 404
-    return send_from_directory(UPLOAD_DIR, os.path.basename(session["filepath"]))
+    local_path = os.path.join(UPLOAD_DIR, f"{session_id}.pdf")
+    if not os.path.exists(local_path):
+        bucket = _get_gcs_bucket()
+        if bucket:
+            try:
+                blob = bucket.blob(f"pdfs/{session_id}.pdf")
+                if blob.exists():
+                    os.makedirs(UPLOAD_DIR, exist_ok=True)
+                    blob.download_to_filename(local_path)
+                else:
+                    return jsonify({"error": "Session not found"}), 404
+            except Exception as e:
+                return jsonify({"error": f"Could not load PDF: {e}"}), 500
+        else:
+            return jsonify({"error": "Session not found"}), 404
+    return send_from_directory(UPLOAD_DIR, f"{session_id}.pdf")
 
 
 @app.route("/api/thumbnail/<session_id>", methods=["GET"])
@@ -516,7 +680,7 @@ def get_thumbnail(session_id):
 
 @app.route("/api/paper-context/<session_id>", methods=["GET"])
 def paper_context(session_id):
-    session = sessions.get(session_id)
+    session = _get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -570,7 +734,7 @@ def paper_context(session_id):
 
 @app.route("/api/session/<session_id>/state", methods=["GET"])
 def get_session_state(session_id):
-    session = sessions.get(session_id)
+    session = _get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -587,7 +751,7 @@ def get_session_state(session_id):
 
 @app.route("/api/session/<session_id>/state", methods=["POST"])
 def update_session_state(session_id):
-    session = sessions.get(session_id)
+    session = _get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -631,7 +795,7 @@ def search_text():
     text = data.get("text")
     page = data.get("page", 1)
 
-    session = sessions.get(session_id)
+    session = _get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -699,7 +863,7 @@ def debate_tokens():
 @app.route("/api/debate-context/<session_id>/<role>", methods=["GET"])
 def debate_context(session_id, role):
     """Get debate-specific context for author or reviewer agent."""
-    session = sessions.get(session_id)
+    session = _get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -792,7 +956,7 @@ def navigator_references():
     if not session_id:
         return jsonify({"error": "session_id is required"}), 400
 
-    session = sessions.get(session_id)
+    session = _get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -807,7 +971,7 @@ def start_quiz():
         return jsonify({"error": "session_id is required"}), 400
     
     session_id = data["session_id"]
-    session = sessions.get(session_id)
+    session = _get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
     
@@ -842,7 +1006,7 @@ def end_quiz():
         return jsonify({"error": "session_id is required"}), 400
     
     session_id = data["session_id"]
-    session = sessions.get(session_id)
+    session = _get_session(session_id)
     if session:
         session["quiz_active"] = False
         session["quiz_context"] = None
@@ -857,7 +1021,7 @@ def end_quiz():
 @app.route("/api/quiz-context/<session_id>", methods=["GET"])
 def quiz_context_endpoint(session_id):
     """Get quiz context for voice agent when in quiz mode."""
-    session = sessions.get(session_id)
+    session = _get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
     
@@ -913,15 +1077,13 @@ def create_learning_session():
     _save_session_record(session_id, record)
 
     # Update index
-    index = _load_sessions_index()
-    index["sessions"].append({
+    _upsert_index_entry({
         "id": session_id,
         "docId": data["docId"],
         "title": title,
         "filename": data.get("filename", ""),
         "startedAt": started_at,
     })
-    _save_sessions_index(index)
 
     return jsonify(record), 201
 
@@ -1136,20 +1298,19 @@ def _build_doc_object(doc_id, sessions_for_doc):
 
     coverage_pct = 0
     depth_score = 0.0
-    session_path = os.path.join(SESSIONS_DIR, most_recent['id'] + '.json')
     try:
-        with open(session_path, 'r') as f:
-            session_data = json.load(f)
-        coverage_map = session_data.get('coverageMap', {})
-        if not total_pages:
-            total_pages = session_data.get('totalPages', 0)
-        if coverage_map:
-            total = total_pages or len(coverage_map) or 1
-            covered = sum(1 for v in coverage_map.values() if v.get('coverage', 0) > 0)
-            coverage_pct = round(covered / total * 100)
-            depth_values = [v['depth'] for v in coverage_map.values()
-                            if v.get('coverage', 0) > 0]
-            depth_score = round(sum(depth_values) / len(depth_values), 1) if depth_values else 0.0
+        session_data = _load_session_record(most_recent['id'])
+        if session_data:
+            coverage_map = session_data.get('coverageMap', {})
+            if not total_pages:
+                total_pages = session_data.get('totalPages', 0)
+            if coverage_map:
+                total = total_pages or len(coverage_map) or 1
+                covered = sum(1 for v in coverage_map.values() if v.get('coverage', 0) > 0)
+                coverage_pct = round(covered / total * 100)
+                depth_values = [v['depth'] for v in coverage_map.values()
+                                if v.get('coverage', 0) > 0]
+                depth_score = round(sum(depth_values) / len(depth_values), 1) if depth_values else 0.0
     except Exception:
         pass
 
@@ -1225,20 +1386,39 @@ def get_document(doc_id):
 SETTINGS_FILE = os.path.join(SESSIONS_DIR, "user_settings.json")
 
 def _load_user_settings():
-    """Load user settings from disk."""
+    """Load user settings — Firestore primary, disk fallback."""
+    db = _get_db()
+    if db:
+        try:
+            doc = db.collection('settings').document('global').get()
+            if doc.exists:
+                return doc.to_dict()
+        except Exception as e:
+            print(f"[Firestore] load_user_settings: {e}")
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r") as f:
                 return json.load(f)
         except Exception:
-            return {}
+            pass
     return {}
 
 
 def _save_user_settings(settings):
-    """Save user settings to disk."""
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=2)
+    """Save user settings to Firestore (async) + disk fallback."""
+    db = _get_db()
+    if db:
+        def _write():
+            try:
+                db.collection('settings').document('global').set(settings)
+            except Exception as e:
+                print(f"[Firestore] save_user_settings: {e}")
+        threading.Thread(target=_write, daemon=True).start()
+    try:
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(settings, f, indent=2)
+    except Exception:
+        pass
 
 
 def _get_default_settings():

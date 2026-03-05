@@ -6,10 +6,10 @@ import {
   ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Subscription } from 'rxjs';
-
+import { UserService } from '../services/user.service';
 import { ButtonComponent } from '../components/shared/button/button.component';
 
 export interface DocumentItem {
@@ -38,7 +38,7 @@ interface UploadResponse {
 @Component({
   selector: 'app-library',
   standalone: true,
-  imports: [CommonModule, ButtonComponent],
+  imports: [CommonModule, RouterModule, ButtonComponent],
   templateUrl: './library.component.html',
   styleUrl: './library.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -59,7 +59,13 @@ export class LibraryComponent implements OnInit, OnDestroy {
     private http: HttpClient,
     private router: Router,
     private cdr: ChangeDetectorRef,
+    private userService: UserService,
   ) {}
+
+  logout(): void {
+    this.userService.logout();
+    this.router.navigate(['/landing']);
+  }
 
   ngOnInit(): void {
     this.loadDocuments();
@@ -177,13 +183,15 @@ export class LibraryComponent implements OnInit, OnDestroy {
     const formData = new FormData();
     formData.append('file', file);
 
-    // Simulate progress while uploading
+    // Simulate progress: fast to 70%, then slow crawl to 99% so it never looks frozen
     const progressInterval = setInterval(() => {
-      if (this.uploadProgress < 90) {
+      if (this.uploadProgress < 70) {
         this.uploadProgress += 10;
-        this.cdr.markForCheck();
+      } else if (this.uploadProgress < 99) {
+        this.uploadProgress += 1;
       }
-    }, 200);
+      this.cdr.markForCheck();
+    }, 300);
 
     const sub = this.http.post<UploadResponse>(`${this.apiBase}/documents/upload`, formData).subscribe({
       next: (response) => {
