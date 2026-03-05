@@ -21,12 +21,25 @@ import jwt as pyjwt
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-try:
-    from google.cloud import firestore as _firestore
-    _db = _firestore.Client(project=os.environ.get('GCP_PROJECT_ID', 'learnaloud-app'))
-except Exception as _e:
-    _db = None
-    print(f"[Firestore] Not available: {_e}")
+_firestore = None
+_db = None
+_db_lock = threading.Lock()
+
+def _get_db():
+    """Lazy-init Firestore client — deferred so cold-start is not slowed by grpcio import."""
+    global _firestore, _db
+    if _db is not None:
+        return _db
+    with _db_lock:
+        if _db is not None:
+            return _db
+        try:
+            from google.cloud import firestore as fs
+            _firestore = fs
+            _db = fs.Client(project=os.environ.get('GCP_PROJECT_ID', 'learnaloud-app'))
+        except Exception as e:
+            print(f"[Firestore] Not available: {e}")
+    return _db
 
 load_dotenv()
 
@@ -60,13 +73,14 @@ JWT_EXPIRY_HOURS = 24
 
 def _fs_log_event(event_type: str, data: dict):
     """Write an event to Firestore in a native thread (avoids eventlet/gRPC conflict)."""
-    if not _db:
-        return
     def _write():
+        db = _get_db()
+        if not db:
+            return
         try:
             data['type'] = event_type
             data['timestamp'] = _firestore.SERVER_TIMESTAMP
-            _db.collection('events').add(data)
+            db.collection('events').add(data)
         except Exception as e:
             print(f"[Firestore] event write failed: {e}")
     threading.Thread(target=_write, daemon=True).start()
@@ -1377,26 +1391,28 @@ def google_signin():
             json.dump(users, f, indent=2)
 
     # Upsert user in Firestore (native thread to avoid eventlet/gRPC conflict)
-    if _db:
-        def _upsert_user():
-            try:
-                user_ref = _db.collection('users').document(google_id)
-                if is_new:
-                    user_ref.set({
-                        'name': name, 'email': email, 'picture': picture,
-                        'first_seen': _firestore.SERVER_TIMESTAMP,
-                        'last_seen': _firestore.SERVER_TIMESTAMP,
-                        'sign_in_count': 1,
-                    })
-                else:
-                    user_ref.set({
-                        'name': name, 'email': email, 'picture': picture,
-                        'last_seen': _firestore.SERVER_TIMESTAMP,
-                        'sign_in_count': _firestore.Increment(1),
-                    }, merge=True)
-            except Exception as e:
-                print(f"[Firestore] user upsert failed: {e}")
-        threading.Thread(target=_upsert_user, daemon=True).start()
+    def _upsert_user():
+        db = _get_db()
+        if not db:
+            return
+        try:
+            user_ref = db.collection('users').document(google_id)
+            if is_new:
+                user_ref.set({
+                    'name': name, 'email': email, 'picture': picture,
+                    'first_seen': _firestore.SERVER_TIMESTAMP,
+                    'last_seen': _firestore.SERVER_TIMESTAMP,
+                    'sign_in_count': 1,
+                })
+            else:
+                user_ref.set({
+                    'name': name, 'email': email, 'picture': picture,
+                    'last_seen': _firestore.SERVER_TIMESTAMP,
+                    'sign_in_count': _firestore.Increment(1),
+                }, merge=True)
+        except Exception as e:
+            print(f"[Firestore] user upsert failed: {e}")
+    threading.Thread(target=_upsert_user, daemon=True).start()
     _fs_log_event('sign_in', {'email': email, 'name': name, 'is_new_user': is_new})
 
     payload = {
