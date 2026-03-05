@@ -32,6 +32,7 @@ export class VoiceService {
   private onClientAction: ((action: any) => void) | null = null;
   private onTranscript: ((transcript: TranscriptEntry[]) => void) | null = null;
   private audioElements: HTMLElement[] = [];
+  private audioTracks: any[] = [];
 
   private async loadLiveKit(): Promise<LiveKitModule> {
     if (!this.lk) {
@@ -66,6 +67,7 @@ export class VoiceService {
       this.room = null;
       this.audioElements.forEach(el => el.remove());
       this.audioElements = [];
+      this.audioTracks = [];
     }
 
     this.isConnecting = true;
@@ -87,8 +89,12 @@ export class VoiceService {
           const el = track.attach();
           el.id = 'lk-agent-audio';
           this.audioElements.push(el);
+          this.audioTracks.push(track);
           // Apply current pause state if already paused
           this.applyPauseStateToElement(el);
+          if (this.isPaused) {
+            track.setVolume?.(0);
+          }
           document.body.appendChild(el);
         }
       }
@@ -97,6 +103,8 @@ export class VoiceService {
     this.room.on(
       RoomEvent.TrackUnsubscribed,
       (track: any) => {
+        const ti = this.audioTracks.indexOf(track);
+        if (ti > -1) this.audioTracks.splice(ti, 1);
         track.detach().forEach((el: HTMLElement) => {
           const index = this.audioElements.indexOf(el);
           if (index > -1) {
@@ -489,6 +497,7 @@ export class VoiceService {
     // Remove all audio elements
     this.audioElements.forEach(el => el.remove());
     this.audioElements = [];
+    this.audioTracks = [];
     // Fallback: remove by ID
     for (const id of ['lk-agent-audio', 'lk-author-audio', 'lk-reviewer-audio']) {
       const audioEl = document.getElementById(id);
@@ -566,6 +575,8 @@ export class VoiceService {
       }
 
       // Mute/pause all agent audio elements
+      const vol = this.isPaused ? 0 : 1;
+      this.audioTracks.forEach(t => t.setVolume?.(vol));
       if (this.audioElements.length > 0) {
         this.audioElements.forEach(el => {
           this.applyPauseStateToElement(el);

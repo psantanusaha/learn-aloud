@@ -163,6 +163,8 @@ export class App implements OnInit, OnDestroy {
     });
 
     this.voice.setTranscriptHandler((entries: TranscriptEntry[]) => {
+      // Don't update transcript while paused — tutor keeps generating but we suppress display
+      if (this.voice.isPaused) return;
       const prev = this.transcriptEntries;
       this.transcriptEntries = [...entries];
 
