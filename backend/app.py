@@ -23,7 +23,10 @@ from google.auth.transport import requests as google_requests
 
 _firestore = None
 _db = None
-_db_lock = threading.Lock()
+# Use a real OS-level lock (not eventlet's patched lock) so _get_db() is safe
+# to call from tpool native threads without deadlocking the eventlet hub.
+_native_threading = eventlet.patcher.original('threading')
+_db_lock = _native_threading.Lock()
 
 def _get_db():
     """Lazy-init Firestore client — deferred so cold-start is not slowed by grpcio import."""
@@ -44,7 +47,7 @@ def _get_db():
 
 # ── GCS (lazy-init) ───────────────────────────────────────────────────────────
 _gcs_bucket = None
-_gcs_lock = threading.Lock()
+_gcs_lock = _native_threading.Lock()
 GCS_BUCKET = os.environ.get('GCS_BUCKET', 'learnaloud-sessions')
 
 
