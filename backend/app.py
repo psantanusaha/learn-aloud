@@ -45,27 +45,6 @@ def _get_db():
     return _db
 
 
-# ── GCS (lazy-init) ───────────────────────────────────────────────────────────
-_gcs_bucket = None
-_gcs_lock = _native_threading.Lock()
-GCS_BUCKET = os.environ.get('GCS_BUCKET', 'learnaloud-sessions')
-
-
-def _get_gcs_bucket():
-    """Lazy-init GCS bucket handle."""
-    global _gcs_bucket
-    if _gcs_bucket is not None:
-        return _gcs_bucket
-    with _gcs_lock:
-        if _gcs_bucket is not None:
-            return _gcs_bucket
-        try:
-            from google.cloud import storage
-            client = storage.Client(project=os.environ.get('GCP_PROJECT_ID', 'learnaloud-app'))
-            _gcs_bucket = client.bucket(GCS_BUCKET)
-        except Exception as e:
-            print(f"[GCS] Not available: {e}")
-    return _gcs_bucket
 
 load_dotenv()
 
@@ -234,70 +213,6 @@ def _save_session_record(session_id, record):
         pass
 
 
-# ── GCS session helpers ───────────────────────────────────────────────────────
-
-def _gcs_save_session(session_id, session_dict, local_pdf_path):
-    """Upload PDF file + parsed data blob to GCS. Runs in a background thread."""
-    def _upload():
-        bucket = _get_gcs_bucket()
-        if not bucket:
-            return
-        try:
-            # PDF file
-            pdf_blob = bucket.blob(f"pdfs/{session_id}.pdf")
-            pdf_blob.upload_from_filename(local_pdf_path)
-            # Parsed data (pdf_data + outline + metadata) as JSON
-            data_blob = bucket.blob(f"data/{session_id}.json")
-            payload = json.dumps({
-                "pdf_data": session_dict["pdf_data"],
-                "outline":  session_dict["outline"],
-                "filename": session_dict["filename"],
-                "title":    session_dict.get("title", ""),
-            })
-            data_blob.upload_from_string(payload, content_type="application/json")
-            print(f"[GCS] session {session_id} saved ({len(payload)//1024} KB data)")
-        except Exception as e:
-            print(f"[GCS] save_session {session_id} failed: {e}")
-
-    threading.Thread(target=_upload, daemon=True).start()
-
-
-def _gcs_restore_session(session_id):
-    """Load session from GCS into the in-memory cache (via tpool). Returns dict or None."""
-    import eventlet.tpool
-    try:
-        def _fetch():
-            bucket = _get_gcs_bucket()
-            if not bucket:
-                return None
-            blob = bucket.blob(f"data/{session_id}.json")
-            if not blob.exists():
-                return None
-            return json.loads(blob.download_as_text())
-        content = eventlet.tpool.execute(_fetch)
-        if not content:
-            return None
-        session = {
-            "filepath": os.path.join(UPLOAD_DIR, f"{session_id}.pdf"),
-            "pdf_data": content["pdf_data"],
-            "outline":  content["outline"],
-            "filename": content["filename"],
-            "title":    content.get("title", ""),
-            "current_page": 1,
-            "transcript_summary": "",
-            "concepts_discussed": [],
-        }
-        sessions[session_id] = session
-        print(f"[GCS] restored session {session_id}")
-        return session
-    except Exception as e:
-        print(f"[GCS] restore_session {session_id} failed: {e}")
-        return None
-
-
-def _get_session(session_id):
-    """Return session dict from memory cache, or restore from GCS on miss."""
-    return sessions.get(session_id) or _gcs_restore_session(session_id)
 
 pdf_processor = PDFProcessor()
 vocal_bridge = VocalBridgeClient(os.getenv("VOCAL_BRIDGE_API_KEY", ""))
@@ -614,9 +529,6 @@ def upload_pdf():
             "concepts_discussed": [],
         }
 
-        # Persist PDF + parsed data to GCS (background thread)
-        _gcs_save_session(session_id, sessions[session_id], filepath)
-
         # Register in sessions index (Firestore + disk)
         _upsert_index_entry({
             "id": session_id,
@@ -659,23 +571,7 @@ def documents_upload():
 def serve_pdf(session_id):
     local_path = os.path.join(UPLOAD_DIR, f"{session_id}.pdf")
     if not os.path.exists(local_path):
-        try:
-            import eventlet.tpool
-            def _download():
-                bucket = _get_gcs_bucket()
-                if not bucket:
-                    return False
-                blob = bucket.blob(f"pdfs/{session_id}.pdf")
-                if not blob.exists():
-                    return False
-                os.makedirs(UPLOAD_DIR, exist_ok=True)
-                blob.download_to_filename(local_path)
-                return True
-            found = eventlet.tpool.execute(_download)
-            if not found:
-                return jsonify({"error": "Session not found"}), 404
-        except Exception as e:
-            return jsonify({"error": f"Could not load PDF: {e}"}), 500
+        return jsonify({"error": "Session not found"}), 404
     return send_from_directory(UPLOAD_DIR, f"{session_id}.pdf")
 
 
@@ -702,7 +598,7 @@ def get_thumbnail(session_id):
 
 @app.route("/api/paper-context/<session_id>", methods=["GET"])
 def paper_context(session_id):
-    session = _get_session(session_id)
+    session = sessions.get(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -756,7 +652,7 @@ def paper_context(session_id):
 
 @app.route("/api/session/<session_id>/state", methods=["GET"])
 def get_session_state(session_id):
-    session = _get_session(session_id)
+    session = sessions.get(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -773,7 +669,7 @@ def get_session_state(session_id):
 
 @app.route("/api/session/<session_id>/state", methods=["POST"])
 def update_session_state(session_id):
-    session = _get_session(session_id)
+    session = sessions.get(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -817,7 +713,7 @@ def search_text():
     text = data.get("text")
     page = data.get("page", 1)
 
-    session = _get_session(session_id)
+    session = sessions.get(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -885,7 +781,7 @@ def debate_tokens():
 @app.route("/api/debate-context/<session_id>/<role>", methods=["GET"])
 def debate_context(session_id, role):
     """Get debate-specific context for author or reviewer agent."""
-    session = _get_session(session_id)
+    session = sessions.get(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -978,7 +874,7 @@ def navigator_references():
     if not session_id:
         return jsonify({"error": "session_id is required"}), 400
 
-    session = _get_session(session_id)
+    session = sessions.get(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
@@ -993,7 +889,7 @@ def start_quiz():
         return jsonify({"error": "session_id is required"}), 400
     
     session_id = data["session_id"]
-    session = _get_session(session_id)
+    session = sessions.get(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
     
@@ -1028,7 +924,7 @@ def end_quiz():
         return jsonify({"error": "session_id is required"}), 400
     
     session_id = data["session_id"]
-    session = _get_session(session_id)
+    session = sessions.get(session_id)
     if session:
         session["quiz_active"] = False
         session["quiz_context"] = None
@@ -1043,7 +939,7 @@ def end_quiz():
 @app.route("/api/quiz-context/<session_id>", methods=["GET"])
 def quiz_context_endpoint(session_id):
     """Get quiz context for voice agent when in quiz mode."""
-    session = _get_session(session_id)
+    session = sessions.get(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
     
