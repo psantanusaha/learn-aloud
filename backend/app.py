@@ -1,5 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
+import eventlet.tpool
 
 import os
 import uuid
@@ -88,7 +89,7 @@ def _fs_log_event(event_type: str, data: dict):
             db.collection('events').add(data)
         except Exception as e:
             print(f"[Firestore] event write failed: {e}")
-    threading.Thread(target=_write, daemon=True).start()
+    eventlet.spawn_n(eventlet.tpool.execute, _write)
 
 
 def _require_auth():
@@ -136,7 +137,7 @@ def _upsert_index_entry(entry):
                 db.collection('uploads').document(entry['id']).set(entry)
         except Exception as e:
             print(f"[Firestore] upsert_index_entry: {e}")
-    threading.Thread(target=_write, daemon=True).start()
+    eventlet.spawn_n(eventlet.tpool.execute, _write)
     # disk fallback
     try:
         index = {"sessions": []}
@@ -203,7 +204,7 @@ def _save_session_record(session_id, record):
                 db.collection('learning_sessions').document(session_id).set(record)
         except Exception as e:
             print(f"[Firestore] save_session_record {session_id}: {e}")
-    threading.Thread(target=_write, daemon=True).start()
+    eventlet.spawn_n(eventlet.tpool.execute, _write)
     # disk fallback (best-effort)
     try:
         filepath = _get_session_file(session_id)
@@ -1336,7 +1337,7 @@ def _save_user_settings(settings):
                 db.collection('settings').document('global').set(settings)
         except Exception as e:
             print(f"[Firestore] save_user_settings: {e}")
-    threading.Thread(target=_write, daemon=True).start()
+    eventlet.spawn_n(eventlet.tpool.execute, _write)
     try:
         with open(SETTINGS_FILE, "w") as f:
             json.dump(settings, f, indent=2)
@@ -1515,7 +1516,7 @@ def google_signin():
                 }, merge=True)
         except Exception as e:
             print(f"[Firestore] user upsert failed: {e}")
-    threading.Thread(target=_upsert_user, daemon=True).start()
+    eventlet.spawn_n(eventlet.tpool.execute, _upsert_user)
     _fs_log_event('sign_in', {'email': email, 'name': name, 'is_new_user': is_new})
 
     payload = {
