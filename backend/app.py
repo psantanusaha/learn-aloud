@@ -528,6 +528,7 @@ def upload_pdf():
             "current_page": 1,
             "transcript_summary": "",
             "concepts_discussed": [],
+            "startedAt": int(time.time() * 1000),
         }
 
         # Register in sessions index (Firestore + disk)
@@ -1249,53 +1250,46 @@ def _build_doc_object(doc_id, sessions_for_doc):
 
 @app.route('/api/documents', methods=['GET'])
 def list_documents():
-    """List all documents aggregated from sessions index, grouped by docId."""
-    try:
-        index = _load_sessions_index()
-    except Exception:
-        return jsonify({'documents': []})
-
-    # Group by docId
-    by_doc = {}
-    for entry in index.get('sessions', []):
-        doc_id = entry.get('docId')
-        if not doc_id:
-            continue
-        by_doc.setdefault(doc_id, []).append(entry)
-
-    # Build document objects, sorted by most recent startedAt descending
+    """List all documents from the in-memory sessions dict — instant, no Firestore."""
     docs = []
-    for doc_id, entries in by_doc.items():
-        try:
-            docs.append((
-                max(e.get('startedAt', 0) for e in entries),
-                _build_doc_object(doc_id, entries),
-            ))
-        except Exception:
-            continue
-
+    for session_id, s in sessions.items():
+        docs.append((
+            s.get('startedAt', 0),
+            {
+                'id': session_id,
+                'title': s.get('title', clean_filename(s.get('filename', session_id))),
+                'filename': s.get('filename', ''),
+                'totalPages': s.get('pdf_data', {}).get('total_pages', 0),
+                'currentPage': s.get('current_page', 1),
+                'lastOpened': ms_to_iso(s.get('startedAt', 0)),
+                'sessionCount': 1,
+                'progress': 0,
+                'depthScore': 0.0,
+                'thumbnailUrl': f'/api/thumbnail/{session_id}',
+            }
+        ))
     docs.sort(key=lambda x: x[0], reverse=True)
     return jsonify({'documents': [d for _, d in docs]})
 
 
 @app.route('/api/documents/<doc_id>', methods=['GET'])
 def get_document(doc_id):
-    """Get a single document by docId."""
-    try:
-        index = _load_sessions_index()
-    except Exception:
+    """Get a single document by session id from memory."""
+    s = sessions.get(doc_id)
+    if not s:
         return jsonify({'error': 'Document not found', 'docId': doc_id}), 404
-
-    entries = [e for e in index.get('sessions', []) if e.get('docId') == doc_id]
-    if not entries:
-        return jsonify({'error': 'Document not found', 'docId': doc_id}), 404
-
-    try:
-        doc = _build_doc_object(doc_id, entries)
-    except Exception:
-        return jsonify({'error': 'Document not found', 'docId': doc_id}), 404
-
-    return jsonify(doc)
+    return jsonify({
+        'id': doc_id,
+        'title': s.get('title', clean_filename(s.get('filename', doc_id))),
+        'filename': s.get('filename', ''),
+        'totalPages': s.get('pdf_data', {}).get('total_pages', 0),
+        'currentPage': s.get('current_page', 1),
+        'lastOpened': ms_to_iso(s.get('startedAt', 0)),
+        'sessionCount': 1,
+        'progress': 0,
+        'depthScore': 0.0,
+        'thumbnailUrl': f'/api/thumbnail/{doc_id}',
+    })
 
 
 # ---------------------------------------------------------------------------
