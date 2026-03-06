@@ -111,9 +111,9 @@ def _load_sessions_index():
             db = _get_db()
             if not db:
                 return None
-            docs = db.collection('uploads').stream()
+            docs = db.collection('uploads').stream(timeout=8)
             return [doc.to_dict() for doc in docs]
-        result = eventlet.tpool.execute(_fetch)
+        result = eventlet.with_timeout(10, eventlet.tpool.execute, _fetch, timeout_value=None)
         if result is not None:
             return {"sessions": result}
     except Exception as e:
@@ -179,7 +179,7 @@ def _load_session_record(session_id):
                 return None
             doc = db.collection('learning_sessions').document(session_id).get()
             return doc.to_dict() if doc.exists else None
-        result = eventlet.tpool.execute(_fetch)
+        result = eventlet.with_timeout(10, eventlet.tpool.execute, _fetch, timeout_value=None)
         if result is not None:
             return result
     except Exception as e:
@@ -476,8 +476,8 @@ def upload_pdf():
     file.seek(0, 2)  # seek to end
     file_size = file.tell()
     file.seek(0)     # reset
-    if file_size > 1 * 1024 * 1024:
-        return jsonify({"error": f"File too large ({file_size / 1024 / 1024:.1f} MB). Maximum size is 1 MB."}), 413
+    if file_size > 10 * 1024 * 1024:
+        return jsonify({"error": f"File too large ({file_size / 1024 / 1024:.1f} MB). Maximum size is 10 MB."}), 413
 
     session_id = str(uuid.uuid4())
     filename = f"{session_id}.pdf"
@@ -1314,7 +1314,7 @@ def _load_user_settings():
                 return None
             doc = db.collection('settings').document('global').get()
             return doc.to_dict() if doc.exists else None
-        result = eventlet.tpool.execute(_fetch)
+        result = eventlet.with_timeout(10, eventlet.tpool.execute, _fetch, timeout_value=None)
         if result is not None:
             return result
     except Exception as e:
